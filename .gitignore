@@ -4,6 +4,7 @@ dist/
 build/
 .venv/
 __pycache__/
+*.egg-info/
 *.pyc
 
 # Local environment and secrets
@@ -15,3 +16,6 @@ __pycache__/
 .idea/
 .vscode/
 .DS_Store
+
+# Agent tool state
+.omc/
