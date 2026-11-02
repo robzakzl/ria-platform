@@ -30,16 +30,20 @@ Python 3.12+, Node 24 with npm, and Docker with Compose v2. Nothing else: no `.e
 | `./dc <args>` | Any other `docker compose` command, e.g. `./dc logs -f api`. |
 
 Default addresses: web http://127.0.0.1:5173, API http://127.0.0.1:8000 (docs at `/docs`),
-PostgreSQL on 127.0.0.1:5432 (user, password and database all `ria`). To change a port or the database
-login, copy `.env.example` to `.env` and set it there; `./dc` always reads this worktree's `.env` first.
+PostgreSQL on 127.0.0.1:5432 (user, password and database all `ria`). In a Jaah worktree the pool writes
+its own ports into `.env`; on your own machine you need no `.env` unless a default port is taken (then copy
+`.env.example` to `.env` and uncomment that port). `./dc` always reads this worktree's `.env` first.
 
-For a faster edit loop, run the API and web outside containers with the database from the stack:
+For a faster edit loop, run the API and web outside containers with the database from the stack
+(with the default ports and login; adjust the URL if your `.env` changes them):
 
 ```bash
 ./dc up db
+# terminal 1: the API
 cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 DATABASE_URL=postgresql://ria:ria@127.0.0.1:5432/ria .venv/bin/uvicorn app.main:app --reload
-cd frontend && npm ci && npm run dev    # forwards /api to http://localhost:8000 (override: API_URL)
+# terminal 2: the web app, forwarding /api to http://localhost:8000 (override with API_URL)
+cd frontend && npm ci && npm run dev
 ```
 
 ## Test it
@@ -47,7 +51,7 @@ cd frontend && npm ci && npm run dev    # forwards /api to http://localhost:8000
 | Command | What it runs | Time |
 |---|---|---|
 | `./dc check quick` | Back end: `ruff check`, `ruff format --check`, `pytest`. Web: `tsc` type-check, `vitest`. | ~25s cold, seconds warm |
-| `./dc check full` | Quick, plus the web production build and a smoke test: brings the stack up, checks the API reaches the database and the web app reaches the API, then takes it down again (if it was not already running). | ~1 min |
+| `./dc check full` | Quick, plus the web production build and a smoke test: brings the stack up, checks the API reaches the database and the web app reaches the API, then stops whatever the check itself started; services you already had running stay up. | ~1 min |
 
 Both install missing dependencies themselves, stop at the first failure, and end with
 `GATE <tier>: PASS|FAIL`. CI runs `./dc check full`; run it before opening a PR.
@@ -62,7 +66,9 @@ Both install missing dependencies themselves, stop at the first failure, and end
 
 ## Landmines
 
-- `./dc down -v` is refused on purpose: several copies of this repo can run side by side, and the
+- `./dc down -v` (any spelling) is refused on purpose: several copies of this repo can run side by side, and the
   database volume belongs to this copy. Use `./dc reset` to wipe it.
 - Host ports are variables (`WEB_PORT`, `API_PORT`, `DB_PORT`). Never hard-code one in `compose.yaml`.
-- The starter test client warns that `httpx` with Starlette's test client is deprecated; harmless for now.
+- `pytest` prints a `StarletteDeprecationWarning` about `httpx` with the test client; harmless for now.
+- Run checks through `./dc check`; calling `scripts/check.sh` directly re-runs itself through `./dc` so it
+  probes this worktree's ports.

@@ -5,6 +5,8 @@
 # Exits non-zero on the first failure; the last line is `GATE <tier>: PASS|FAIL`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Ports and stack name come from this worktree's .env, which ./dc loads; always run through it.
+[[ -n ${DC_WRAPPED:-} ]] || exec ./dc check "$@"
 
 tier=${1:-}
 if [[ $tier != quick && $tier != full ]]; then
@@ -42,16 +44,30 @@ quick() {
   step "web tests";       (cd frontend && npm run --silent test)
 }
 
+finish() {
+  local rc=$?
+  if [[ -n ${started:-} ]]; then
+    # Stop only what this check started; anything already running stays up.
+    # shellcheck disable=SC2086
+    if [[ -z $before ]]; then docker compose down || true; else docker compose rm -fs $started || true; fi
+  fi
+  [[ $rc -eq 0 ]] && echo "GATE $tier: PASS" || echo "GATE $tier: FAIL"
+  exit $rc
+}
+
 smoke() {
-  local was_up
-  was_up=$(docker compose ps -q)
+  local all page
+  before=$(docker compose ps --services --status running | sort)
+  all=$(docker compose config --services | sort)
+  started=$(comm -23 <(echo "$all") <(echo "$before") | tr '\n' ' ')
+  trap finish EXIT
   step "stack up"
   docker compose up -d --build --wait
-  [[ -n $was_up ]] || trap 'rc=$?; docker compose down; [[ $rc -eq 0 ]] && echo "GATE $tier: PASS" || echo "GATE $tier: FAIL"; exit $rc' EXIT
   step "API and database answer"
   curl -fsS "http://127.0.0.1:${API_PORT:-8000}/api/health/db"; echo
   step "web answers and reaches the API"
-  curl -fsS "http://127.0.0.1:${WEB_PORT:-5173}/" | grep -q '<div id="root">'
+  page=$(curl -fsS "http://127.0.0.1:${WEB_PORT:-5173}/")
+  [[ $page == *'<div id="root">'* ]] || { echo "web page is missing the app root" >&2; exit 1; }
   curl -fsS "http://127.0.0.1:${WEB_PORT:-5173}/api/health"; echo
 }
 
