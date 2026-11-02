@@ -12,6 +12,7 @@ How to build, run and test ria-platform. This file is the single home for those 
 | `compose.yaml` | The local stack: PostgreSQL, the API, and the web app served by nginx. |
 | `dc` | The one entrypoint: starts and stops the stack and runs the checks. |
 | `scripts/check.sh` | The checks `./dc check` runs. |
+| `infra/bootstrap.yaml` | The one-time AWS bootstrap stack (GitHub OIDC deploy roles); see [deployment.md](deployment.md). |
 | `.github/workflows/ci.yml` | CI: runs `./dc check full` on every push to `main`/`develop` and every PR. |
 
 Generated, never committed: `backend/.venv/`, `frontend/node_modules/`, `frontend/dist/`.
