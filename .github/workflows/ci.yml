@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      # The same command a developer and every Jaah runner use: quick checks, build, stack smoke test.
+      - run: ./dc check full
+
+  # Deploys run only for pushes (merges) to their branch, only after `check` passed: `needs: check` with
+  # no always()/failure() in `if:` means GitHub skips them whenever `check` fails. No `environment:` key:
+  # it would change the OIDC subject the deploy roles trust (docs/deployment.md).
+  deploy-dev:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # id-token: assume the AWS deploy role (OIDC). contents: write: push the web app to gh-pages.
+    permissions:
+      id-token: write
+      contents: write
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN_DEV }}
+          aws-region: us-east-1
+      - run: scripts/deploy.sh dev "$GITHUB_SHA"
+
+  deploy-prod:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # id-token: assume the AWS deploy role (OIDC). contents: write: push the web app to gh-pages.
+    permissions:
+      id-token: write
+      contents: write
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN_PROD }}
+          aws-region: us-east-1
+      - run: scripts/deploy.sh prod "$GITHUB_SHA"

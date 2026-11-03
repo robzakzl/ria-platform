@@ -1,0 +1,506 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::LanguageExtensions
+Description: >-
+  ria-bootstrap - one-time, hand-applied stack (docs/deployment.md): the GitHub OIDC identity provider,
+  one deploy role per branch (develop -> dev, main -> prod), one CloudFormation execution role per
+  environment, and the deploy artifact bucket. Everything else is deployed by GitHub Actions.
+
+Mappings:
+  Branch:
+    dev:
+      GitRef: refs/heads/develop
+    prod:
+      GitRef: refs/heads/main
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      # AWS validates GitHub's certificate against its own trusted CAs; these thumbprints are only
+      # here because older API versions required the field.
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ria-artifacts-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-after-30-days
+            Status: Enabled
+            ExpirationInDays: 30
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt ArtifactBucket.Arn
+              - !Sub ${ArtifactBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  # One copy per environment; ${Env} is dev or prod.
+  Fn::ForEach::Environments:
+    - Env
+    - [dev, prod]
+    - # Assumed by GitHub Actions, only from this repo's branch for this environment.
+      DeployRole${Env}:
+        Type: AWS::IAM::Role
+        Properties:
+          RoleName: !Sub ria-gh-deploy-${Env}
+          Description: !Sub GitHub Actions deploy role for ria-${Env}
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Principal:
+                  Federated: !Ref GitHubOidcProvider
+                Action: sts:AssumeRoleWithWebIdentity
+                Condition:
+                  StringEquals:
+                    token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                    # GitHub sends the immutable form (owner and repo ids, set by the repo's
+                    # use_immutable_subject OIDC setting); the plain form is kept for the default.
+                    token.actions.githubusercontent.com:sub:
+                      - !Sub
+                        - repo:robzakzl@7282725/ria-platform@1443168370:ref:${GitRef}
+                        - GitRef: !FindInMap [Branch, !Ref Env, GitRef]
+                      - !Sub
+                        - repo:robzakzl/ria-platform:ref:${GitRef}
+                        - GitRef: !FindInMap [Branch, !Ref Env, GitRef]
+          Policies:
+            - PolicyName: deploy
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  - Sid: OwnStack
+                    Effect: Allow
+                    Action:
+                      - cloudformation:CreateChangeSet
+                      - cloudformation:DescribeChangeSet
+                      - cloudformation:ExecuteChangeSet
+                      - cloudformation:DeleteChangeSet
+                      - cloudformation:DescribeStacks
+                      - cloudformation:DescribeStackEvents
+                    Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ria-${Env}/*
+                  - Sid: ReadBootstrapOutputs
+                    Effect: Allow
+                    Action: cloudformation:DescribeStacks
+                    Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ria-bootstrap/*
+                  - Sid: UseTransforms
+                    Effect: Allow
+                    Action: cloudformation:CreateChangeSet
+                    Resource:
+                      - !Sub arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
+                      - !Sub arn:aws:cloudformation:${AWS::Region}:aws:transform/LanguageExtensions
+                  - Sid: InspectTemplates
+                    Effect: Allow
+                    Action:
+                      - cloudformation:ValidateTemplate
+                      - cloudformation:GetTemplateSummary
+                    Resource: "*"
+                  - Sid: PassExecRoleToCloudFormation
+                    Effect: Allow
+                    Action: iam:PassRole
+                    Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/ria-cfn-exec-${Env}
+                    Condition:
+                      StringEquals:
+                        iam:PassedToService: cloudformation.amazonaws.com
+                  - Sid: ArtifactsReadWrite
+                    Effect: Allow
+                    Action:
+                      - s3:PutObject
+                      - s3:GetObject
+                    Resource: !Sub ${ArtifactBucket.Arn}/${Env}/*
+                  - Sid: ArtifactsList
+                    Effect: Allow
+                    Action: s3:ListBucket
+                    Resource: !GetAtt ArtifactBucket.Arn
+                    Condition:
+                      StringLike:
+                        s3:prefix: !Sub ${Env}/*
+                  - Sid: WebBucketSync
+                    Effect: Allow
+                    Action:
+                      - s3:ListBucket
+                      - s3:PutObject
+                      - s3:GetObject
+                      - s3:DeleteObject
+                    Resource:
+                      - !Sub arn:aws:s3:::ria-${Env}-web-${AWS::AccountId}
+                      - !Sub arn:aws:s3:::ria-${Env}-web-${AWS::AccountId}/*
+                  - Sid: AccessLogsRead
+                    Effect: Allow
+                    Action:
+                      - s3:ListBucket
+                      - s3:GetObject
+                    Resource:
+                      - !Sub arn:aws:s3:::ria-${Env}-logs-${AWS::AccountId}
+                      - !Sub arn:aws:s3:::ria-${Env}-logs-${AWS::AccountId}/*
+                  - Sid: CacheInvalidation
+                    Effect: Allow
+                    Action:
+                      - cloudfront:CreateInvalidation
+                      - cloudfront:GetInvalidation
+                    Resource: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/*
+                  - Sid: ReadFunctionLogs
+                    Effect: Allow
+                    Action:
+                      - logs:FilterLogEvents
+                      - logs:GetLogEvents
+                      - logs:StartLiveTail
+                    Resource:
+                      - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ria-${Env}-*
+                      - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ria-${Env}-*:*
+                  - Sid: FindNetwork
+                    Effect: Allow
+                    Action:
+                      - ec2:DescribeVpcs
+                      - ec2:DescribeSubnets
+                    Resource: "*"
+
+      # Ceiling for every IAM role the ria-${Env} stack creates: the execution role may only create or
+      # change a role that carries this boundary, so an app template cannot mint an admin role.
+      RoleBoundary${Env}:
+        Type: AWS::IAM::ManagedPolicy
+        Properties:
+          ManagedPolicyName: !Sub ria-${Env}-boundary
+          Description: !Sub Permissions boundary for roles created by the ria-${Env} stack
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: FunctionLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ria-${Env}-*
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ria-${Env}-*:*
+              - Sid: VpcNetworking
+                Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSubnets
+                  - ec2:DeleteNetworkInterface
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:UnassignPrivateIpAddresses
+                Resource: "*"
+              - Sid: OwnSecrets
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ria-${Env}/*
+              - Sid: OwnBuckets
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub arn:aws:s3:::ria-${Env}-*
+                  - !Sub arn:aws:s3:::ria-${Env}-*/*
+              - Sid: Tracing
+                Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+
+      # Assumed by CloudFormation only; creates and changes the ria-${Env} stack's resources.
+      CfnExecRole${Env}:
+        Type: AWS::IAM::Role
+        Properties:
+          RoleName: !Sub ria-cfn-exec-${Env}
+          Description: !Sub CloudFormation execution role for the ria-${Env} stack
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Principal:
+                  Service: cloudformation.amazonaws.com
+                Action: sts:AssumeRole
+          Policies:
+            - PolicyName: provision
+              PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  # CloudFormation authorizes the app template's transforms against this role.
+                  - Sid: UseTransforms
+                    Effect: Allow
+                    Action: cloudformation:CreateChangeSet
+                    Resource:
+                      - !Sub arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
+                      - !Sub arn:aws:cloudformation:${AWS::Region}:aws:transform/LanguageExtensions
+                  - Sid: Lambda
+                    Effect: Allow
+                    Action:
+                      - lambda:CreateFunction
+                      - lambda:DeleteFunction
+                      - lambda:GetFunction
+                      - lambda:GetFunctionConfiguration
+                      - lambda:UpdateFunctionCode
+                      - lambda:UpdateFunctionConfiguration
+                      - lambda:PublishVersion
+                      - lambda:ListVersionsByFunction
+                      - lambda:CreateAlias
+                      - lambda:GetAlias
+                      - lambda:UpdateAlias
+                      - lambda:DeleteAlias
+                      - lambda:AddPermission
+                      - lambda:RemovePermission
+                      - lambda:GetPolicy
+                      - lambda:CreateFunctionUrlConfig
+                      - lambda:GetFunctionUrlConfig
+                      - lambda:UpdateFunctionUrlConfig
+                      - lambda:DeleteFunctionUrlConfig
+                      - lambda:PutFunctionConcurrency
+                      - lambda:DeleteFunctionConcurrency
+                      - lambda:GetFunctionCodeSigningConfig
+                      - lambda:GetRuntimeManagementConfig
+                      - lambda:PutRuntimeManagementConfig
+                      - lambda:GetFunctionRecursionConfig
+                      - lambda:PutFunctionRecursionConfig
+                      - lambda:ListTags
+                      - lambda:TagResource
+                      - lambda:UntagResource
+                    Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ria-${Env}-*
+                  - Sid: LambdaWebAdapterLayer
+                    Effect: Allow
+                    Action: lambda:GetLayerVersion
+                    Resource: !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerArm64:*
+                  - Sid: Database
+                    Effect: Allow
+                    Action:
+                      - rds:CreateDBCluster
+                      - rds:ModifyDBCluster
+                      - rds:DeleteDBCluster
+                      - rds:CreateDBInstance
+                      - rds:ModifyDBInstance
+                      - rds:DeleteDBInstance
+                      - rds:CreateDBSubnetGroup
+                      - rds:ModifyDBSubnetGroup
+                      - rds:DeleteDBSubnetGroup
+                      - rds:AddTagsToResource
+                      - rds:RemoveTagsFromResource
+                      - rds:ListTagsForResource
+                    Resource:
+                      - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:ria-${Env}-*
+                      - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:ria-${Env}-*
+                      - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:ria-${Env}-*
+                      # Creating a cluster or instance also authorizes against the default groups it uses.
+                      - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-pg:default.*
+                      - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:pg:default.*
+                      - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:og:default:*
+                  - Sid: DatabaseDescribe
+                    Effect: Allow
+                    Action: rds:Describe*
+                    Resource: "*"
+                  - Sid: RdsServiceLinkedRole
+                    Effect: Allow
+                    Action: iam:CreateServiceLinkedRole
+                    Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS
+                    Condition:
+                      StringEquals:
+                        iam:AWSServiceName: rds.amazonaws.com
+                  - Sid: NetworkSecurityGroupsAndEnis
+                    Effect: Allow
+                    Action:
+                      - ec2:Describe*
+                      - ec2:CreateSecurityGroup
+                      - ec2:DeleteSecurityGroup
+                      - ec2:AuthorizeSecurityGroupIngress
+                      - ec2:AuthorizeSecurityGroupEgress
+                      - ec2:RevokeSecurityGroupIngress
+                      - ec2:RevokeSecurityGroupEgress
+                      - ec2:ModifySecurityGroupRules
+                      - ec2:CreateTags
+                      - ec2:DeleteTags
+                      - ec2:CreateNetworkInterface
+                      - ec2:DeleteNetworkInterface
+                      - ec2:AssignPrivateIpAddresses
+                      - ec2:UnassignPrivateIpAddresses
+                    Resource: "*"
+                  - Sid: Secrets
+                    Effect: Allow
+                    Action:
+                      - secretsmanager:CreateSecret
+                      - secretsmanager:DeleteSecret
+                      - secretsmanager:DescribeSecret
+                      - secretsmanager:GetSecretValue
+                      - secretsmanager:PutSecretValue
+                      - secretsmanager:UpdateSecret
+                      - secretsmanager:TagResource
+                      - secretsmanager:UntagResource
+                    Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ria-${Env}/*
+                  - Sid: SecretPasswords
+                    Effect: Allow
+                    Action: secretsmanager:GetRandomPassword
+                    Resource: "*"
+                  - Sid: Buckets
+                    Effect: Allow
+                    Action:
+                      - s3:CreateBucket
+                      - s3:DeleteBucket
+                      - s3:ListBucket
+                      - s3:GetBucketLocation
+                      - s3:GetBucketPolicy
+                      - s3:PutBucketPolicy
+                      - s3:DeleteBucketPolicy
+                      - s3:GetBucketPublicAccessBlock
+                      - s3:PutBucketPublicAccessBlock
+                      - s3:GetEncryptionConfiguration
+                      - s3:PutEncryptionConfiguration
+                      - s3:GetLifecycleConfiguration
+                      - s3:PutLifecycleConfiguration
+                      - s3:GetBucketOwnershipControls
+                      - s3:PutBucketOwnershipControls
+                      - s3:GetBucketAcl
+                      - s3:PutBucketAcl
+                      - s3:GetBucketTagging
+                      - s3:PutBucketTagging
+                      - s3:GetBucketVersioning
+                      - s3:PutBucketVersioning
+                      - s3:GetBucketCORS
+                      - s3:PutBucketCORS
+                    Resource: !Sub arn:aws:s3:::ria-${Env}-*
+                  - Sid: ReadOwnArtifacts
+                    Effect: Allow
+                    Action:
+                      - s3:GetObject
+                      - s3:GetObjectVersion
+                    Resource: !Sub ${ArtifactBucket.Arn}/${Env}/*
+                  - Sid: Cdn
+                    Effect: Allow
+                    Action:
+                      - cloudfront:CreateDistribution
+                      - cloudfront:UpdateDistribution
+                      - cloudfront:DeleteDistribution
+                      - cloudfront:GetDistribution
+                      - cloudfront:GetDistributionConfig
+                      - cloudfront:TagResource
+                      - cloudfront:UntagResource
+                      - cloudfront:ListTagsForResource
+                      - cloudfront:CreateOriginAccessControl
+                      - cloudfront:GetOriginAccessControl
+                      - cloudfront:GetOriginAccessControlConfig
+                      - cloudfront:UpdateOriginAccessControl
+                      - cloudfront:DeleteOriginAccessControl
+                      - cloudfront:ListOriginAccessControls
+                      - cloudfront:CreateFunction
+                      - cloudfront:DescribeFunction
+                      - cloudfront:GetFunction
+                      - cloudfront:UpdateFunction
+                      - cloudfront:PublishFunction
+                      - cloudfront:DeleteFunction
+                      - cloudfront:CreateCachePolicy
+                      - cloudfront:GetCachePolicy
+                      - cloudfront:UpdateCachePolicy
+                      - cloudfront:DeleteCachePolicy
+                      - cloudfront:CreateOriginRequestPolicy
+                      - cloudfront:GetOriginRequestPolicy
+                      - cloudfront:UpdateOriginRequestPolicy
+                      - cloudfront:DeleteOriginRequestPolicy
+                      - cloudfront:GetResponseHeadersPolicy
+                    Resource: "*"
+                  - Sid: FunctionRolesWithinBoundary
+                    Effect: Allow
+                    Action:
+                      - iam:CreateRole
+                      - iam:PutRolePolicy
+                      - iam:AttachRolePolicy
+                    Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/ria-${Env}-*
+                    Condition:
+                      StringEquals:
+                        iam:PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/ria-${Env}-boundary
+                  - Sid: FunctionRoles
+                    Effect: Allow
+                    Action:
+                      - iam:DeleteRole
+                      - iam:GetRole
+                      - iam:UpdateRole
+                      - iam:UpdateAssumeRolePolicy
+                      - iam:GetRolePolicy
+                      - iam:DeleteRolePolicy
+                      - iam:ListRolePolicies
+                      - iam:DetachRolePolicy
+                      - iam:ListAttachedRolePolicies
+                      - iam:TagRole
+                      - iam:UntagRole
+                    Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/ria-${Env}-*
+                  - Sid: PassFunctionRoles
+                    Effect: Allow
+                    Action: iam:PassRole
+                    Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/ria-${Env}-*
+                    Condition:
+                      StringEquals:
+                        iam:PassedToService: lambda.amazonaws.com
+                  - Sid: LogGroups
+                    Effect: Allow
+                    Action:
+                      - logs:CreateLogGroup
+                      - logs:DeleteLogGroup
+                      - logs:PutRetentionPolicy
+                      - logs:DeleteRetentionPolicy
+                      - logs:TagResource
+                      - logs:UntagResource
+                      - logs:TagLogGroup
+                      - logs:UntagLogGroup
+                      - logs:ListTagsForResource
+                      - logs:ListTagsLogGroup
+                    Resource:
+                      - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ria-${Env}-*
+                      - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ria-${Env}-*:*
+                  - Sid: LogGroupsDescribe
+                    Effect: Allow
+                    Action: logs:DescribeLogGroups
+                    Resource: "*"
+
+Outputs:
+  ArtifactBucket:
+    Description: Bucket for packaged deploy artifacts, one prefix per environment
+    Value: !Ref ArtifactBucket
+  DeployRoleArnDev:
+    Description: Value of the GitHub variable AWS_DEPLOY_ROLE_ARN_DEV
+    Value: !GetAtt DeployRoledev.Arn
+  DeployRoleArnProd:
+    Description: Value of the GitHub variable AWS_DEPLOY_ROLE_ARN_PROD
+    Value: !GetAtt DeployRoleprod.Arn
+  CfnExecRoleArnDev:
+    Description: CloudFormation execution role for ria-dev
+    Value: !GetAtt CfnExecRoledev.Arn
+  CfnExecRoleArnProd:
+    Description: CloudFormation execution role for ria-prod
+    Value: !GetAtt CfnExecRoleprod.Arn
