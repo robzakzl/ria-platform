@@ -12,7 +12,7 @@ stack below, which a person applies by hand.
 | Environment | Deployed from | URL |
 |---|---|---|
 | dev | every merge to `develop` | Web app: https://robzakzl.github.io/ria-platform/dev/ <br> API: https://enhz3o4jxdjbwtvl6r2pmn2lku0zlyhl.lambda-url.us-east-1.on.aws |
-| prod | every merge to `main` | Web app: https://robzakzl.github.io/ria-platform/prod/ (from the first release) |
+| prod | every merge to `main` | Web app: https://robzakzl.github.io/ria-platform/prod/ <br> API: https://2dwja3ukwdhpa2a7luhmbdns2q0mkcti.lambda-url.us-east-1.on.aws |
 
 The web app's URL is fixed by the repo name. The API's URL is the Lambda function URL
 (`https://<id>.lambda-url.us-east-1.on.aws`); it stays the same across deploys, and only deleting the
@@ -20,7 +20,7 @@ stack would change it. Read it from the stack at any time:
 
 ```bash
 aws cloudformation describe-stacks --region us-east-1 --stack-name ria-dev \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text
+  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text   # ria-prod for prod
 ```
 
 **Before the first deploy of the web app** (once per repo): GitHub Pages serves the `gh-pages` branch
