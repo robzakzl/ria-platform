@@ -51,12 +51,19 @@ class AccountType(StrEnum):
     JOINT = "Joint"
 
 
-Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+# PostgreSQL text cannot hold NUL, so it is rejected here (422) rather than failing in the database.
+_NO_NUL = r"^[^\x00]*$"
+Text = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200, pattern=_NO_NUL)
+]
 
 
 class Address(BaseModel):
     street1: Text
-    street2: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
+    street2: (
+        Annotated[str, StringConstraints(strip_whitespace=True, max_length=200, pattern=_NO_NUL)]
+        | None
+    ) = None
     city: Text
     state: Annotated[
         str, StringConstraints(strip_whitespace=True, to_upper=True, pattern=r"^[A-Za-z]{2}$")
@@ -83,6 +90,8 @@ def _ensure_schema(conn: psycopg.Connection) -> None:
     if _schema_ready:
         return
     with conn.transaction():
+        # A stalled holder turns waiters into a 503 (LockNotAvailable), not a hung request.
+        conn.execute("SET LOCAL lock_timeout = '10s'")
         conn.execute("SELECT pg_advisory_xact_lock(%s)", (_SCHEMA_LOCK,))
         exists = conn.execute("SELECT to_regclass('accounts') IS NOT NULL AS e").fetchone()["e"]
         if not exists:
@@ -156,5 +165,6 @@ def get_account(account_id: Annotated[int, Path(ge=1, le=2**63 - 1)], conn: Conn
 @router.post("", status_code=201)
 def create_account(account: AccountIn, conn: Conn) -> Account:
     row = conn.execute(f"{_INSERT} RETURNING id, {_COLUMNS}", _params(account)).fetchone()
+    # Commit before returning: the dependency closes the connection only after the response is sent.
     conn.commit()
     return _account(row)

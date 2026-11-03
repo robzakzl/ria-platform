@@ -1,5 +1,6 @@
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 
 import psycopg
@@ -38,6 +39,7 @@ def test_accounts_without_database_url(monkeypatch) -> None:
     [
         {"account_type": "Roth"},
         {"first_name": "  "},
+        {"first_name": "a\u0000b"},
         {"cash_balance": "1.234"},
         {"address": {**VALID["address"], "state": "Mass"}},
         {"address": {**VALID["address"], "zip": "2110"}},
@@ -106,3 +108,16 @@ def test_seed_runs_once_per_database(database, monkeypatch) -> None:
     client.post("/api/accounts", json=VALID)
     monkeypatch.setattr(accounts, "_schema_ready", False)  # a new API process
     assert len(client.get("/api/accounts").json()) == 51
+
+
+def test_blank_street2_is_stored_as_null(database) -> None:
+    body = {**VALID, "address": {**VALID["address"], "street2": "   "}}
+    created = client.post("/api/accounts", json=body).json()
+    assert created["address"]["street2"] is None
+    assert client.get(f"/api/accounts/{created['id']}").json()["address"]["street2"] is None
+
+
+def test_concurrent_first_requests_seed_once(database) -> None:
+    with ThreadPoolExecutor(8) as pool:
+        counts = list(pool.map(lambda _: len(client.get("/api/accounts").json()), range(8)))
+    assert counts == [50] * 8

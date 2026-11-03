@@ -56,7 +56,9 @@ export function AccountList() {
                 <th scope="col">ID</th>
                 <th scope="col">Name</th>
                 <th scope="col">Type</th>
-                <th scope="col">City</th>
+                <th scope="col" className="wide-only">
+                  City
+                </th>
                 <th scope="col" className="num">
                   Cash balance
                 </th>
@@ -72,7 +74,7 @@ export function AccountList() {
                     </Link>
                   </td>
                   <td>{a.account_type}</td>
-                  <td>
+                  <td className="wide-only">
                     {a.address.city}, {a.address.state}
                   </td>
                   <td className="num">{formatUsd(a.cash_balance)}</td>
@@ -164,7 +166,7 @@ export function NewAccountForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof blank) => (e: { target: { value: string } }) =>
-    setF({ ...f, [k]: e.target.value });
+    setF((prev) => ({ ...prev, [k]: e.target.value }));
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
