@@ -23,11 +23,11 @@ aws cloudformation describe-stacks --region us-east-1 --stack-name ria-dev \
   --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text   # ria-prod for prod
 ```
 
-**Before the first deploy of the web app** (once per repo): GitHub Pages serves the `gh-pages` branch
-only after someone with admin access switches it on. The first deploy creates that branch and then
-fails its smoke test, because Pages is still off. Open **Settings → Pages → Build and deployment**,
-set Source to **Deploy from a branch**, branch `gh-pages`, folder `/ (root)`, choose **Save**, then
-re-run the failed deploy ([Deploy](#deploy)). On a private repo this needs a paid GitHub plan.
+**GitHub Pages setting** (done for this repo; repeat it only for a new copy of the repo): GitHub Pages
+serves the `gh-pages` branch only after someone with admin access selects it. Open **Settings → Pages →
+Build and deployment**, set Source to **Deploy from a branch**, branch `gh-pages`, folder `/ (root)`, and
+choose **Save**. Until then the web URLs answer `404` and every deploy fails its smoke test; after it,
+re-run the failed deploy ([Deploy](#deploy)). On a private repo Pages needs a paid GitHub plan.
 
 Why GitHub Pages and not CloudFront: the AWS account cannot create CloudFront distributions until AWS
 Support verifies it (CloudFormation reports `Your account must be verified before you can add new
@@ -53,6 +53,65 @@ What one environment (`ria-<env>`) holds:
 
 The web app is not in the stack: it is the folder `<env>/` of the `gh-pages` branch, which GitHub Pages
 serves. Each deploy replaces only its own environment's folder.
+
+## Monthly cost
+
+Expected cost in USD per month, us-east-1 list prices (checked 2026-11-03). Usage assumption: demo
+traffic only. That means a few hundred requests a month, a database under 1 GB, and the database awake
+for about 2–16 hours a month (it pauses after 5 idle minutes).
+
+The AWS account is on the **paid plan with $0 credits**. It has no 12-month free tier, so no free tier
+runs out: these prices are steady-state, today and after. The only free allowances are AWS's
+**Always Free** ones, which never expire and are shared by both environments: Lambda 1M requests and
+400,000 GB-seconds, CloudWatch Logs 5 GB. Everything else is billed from the first byte. GitHub Pages
+and GitHub Actions minutes cost nothing on this public repo.
+
+There is one row per resource in the three stacks, as listed by
+`aws cloudformation list-stack-resources --region us-east-1 --stack-name <stack>`. `ria-dev` and `ria-prod` hold the same resources, so their table is shared.
+
+**Per environment (`ria-dev`, and again for `ria-prod`):**
+
+| Stack resource (logical id, type) | USD / month | Always Free? | Why nothing cheaper works |
+|---|---|---|---|
+| `DbInstance` (`AWS::RDS::DBInstance`, Aurora Serverless v2) | $0.12–0.96 | No | Compute: $0.12 per ACU-hour (an ACU, Aurora capacity unit, is about 2 GiB of memory), billed only while awake: 2–16 h at the 0.5-ACU floor. The cap is 1 ACU, $0.12 an hour. Paused costs $0. This is the cheapest real PostgreSQL: the smallest RDS instance (db.t4g.micro) runs all month, about $12–14, and Aurora DSQL is only a PostgreSQL subset. |
+| `DbCluster` (`AWS::RDS::DBCluster`) | up to $0.10 | No | Storage at $0.10 per GB-month plus I/O at $0.20 per million requests, billed on bytes used (well under 1 GB here). The 1-day backup is free up to the cluster's size. Aurora has no cheaper storage tier. |
+| `DbSecret` (`AWS::SecretsManager::Secret`) | $0.40 | No | Holds the database password AWS generates, so it is never in the repo or the logs. Parameter Store is free, but CloudFormation cannot generate a value into it. |
+| `ApiFunction` (`AWS::Lambda::Function`) | $0 | Yes | — |
+| `ApiFunctionUrl` (`AWS::Lambda::Url`) | $0 | n/a, no charge | — |
+| `ApiFunctionURLInvokeAllowPublicAccess` (`AWS::Lambda::Permission`) | $0 | n/a, no charge | — |
+| `ApiFunctionUrlPublicPermissions` (`AWS::Lambda::Permission`) | $0 | n/a, no charge | — |
+| `PublicInvokeViaUrl` (`AWS::Lambda::Permission`) | $0 | n/a, no charge | — |
+| `ApiFunctionRole` (`AWS::IAM::Role`) | $0 | n/a, no charge | — |
+| `ApiLogGroup` (`AWS::Logs::LogGroup`, 14-day retention) | $0 | Yes (5 GB ingest and storage) | — |
+| `ApiSecurityGroup` (`AWS::EC2::SecurityGroup`) | $0 | n/a, no charge | — |
+| `DbSecurityGroup` (`AWS::EC2::SecurityGroup`) | $0 | n/a, no charge | — |
+| `DbFromApiIngress` (`AWS::EC2::SecurityGroupIngress`) | $0 | n/a, no charge | — |
+| `DbSubnetGroup` (`AWS::RDS::DBSubnetGroup`) | $0 | n/a, no charge | — |
+| **Per environment** | **about $0.60–1.50** | | |
+
+The web app (GitHub Pages, `gh-pages` branch) costs $0. The database is private and has no public IP,
+so there is no public IPv4 charge.
+
+**Shared (`ria-bootstrap`):**
+
+| Stack resource (logical id, type) | USD / month | Always Free? | Why nothing cheaper works |
+|---|---|---|---|
+| `ArtifactBucket` (`AWS::S3::Bucket`, objects expire after 30 days) | under $0.01 | No | A few MB of deploy packages at $0.023 per GB-month, plus a few hundred requests. CloudFormation needs the Lambda package in S3, and there is no cheaper store for it. |
+| `ArtifactBucketPolicy` (`AWS::S3::BucketPolicy`) | $0 | n/a, no charge | — |
+| `GitHubOidcProvider` (`AWS::IAM::OIDCProvider`) | $0 | n/a, no charge | — |
+| `DeployRoledev` (`AWS::IAM::Role`) | $0 | n/a, no charge | — |
+| `DeployRoleprod` (`AWS::IAM::Role`) | $0 | n/a, no charge | — |
+| `CfnExecRoledev` (`AWS::IAM::Role`) | $0 | n/a, no charge | — |
+| `CfnExecRoleprod` (`AWS::IAM::Role`) | $0 | n/a, no charge | — |
+| `RoleBoundarydev` (`AWS::IAM::ManagedPolicy`) | $0 | n/a, no charge | — |
+| `RoleBoundaryprod` (`AWS::IAM::ManagedPolicy`) | $0 | n/a, no charge | — |
+| **Shared total** | **under $0.01** | | |
+
+**Total, both environments and bootstrap: about $1.20–3.00 per month.** That is about $0.80 for the two
+secrets, $0.20 for database storage, and $0.24–1.92 for database compute, depending on how many hours
+the databases are awake. Each extra awake hour costs $0.06 per environment. If a database never pauses
+(for example something calls it every few minutes), it costs about $44 a month at 0.5 ACU, and up to about $88 at the 1-ACU cap. Check the
+real bill under **Billing and Cost Management → Bills** in the AWS console.
 
 ## Deploy
 
@@ -205,7 +264,7 @@ aws cloudformation describe-stack-events --region us-east-1 --stack-name ria-dev
 - **First load after idle.** The database pauses after 5 idle minutes. The next request waits about
   15 seconds while it resumes (longer after a day or more idle), so the page may first show
   `Database: down`; reload it.
-- **The web app is public.** GitHub Pages serves the site to anyone, even though the repo is private
+- **The web app is public.** GitHub Pages serves the site to anyone, like the repo itself
   (only demo data is deployed).
 - **The API URL is public too.** Anyone can call it; CORS only stops other websites' pages from reading
   its answers in a browser. CORS allows `GET` only; a future `POST`/`PUT` route must add its method to
