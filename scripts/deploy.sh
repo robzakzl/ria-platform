@@ -52,6 +52,15 @@ aws cloudformation package --template-file infra/app.yaml \
   --s3-bucket "$artifacts" --s3-prefix "$env/$sha" --output-template-file build/app.packaged.yaml
 
 step "deploy stack $stack"
+# A first create that failed leaves ROLLBACK_COMPLETE, which CloudFormation cannot update; the deploy
+# role cannot delete stacks, so say what an administrator must do instead of failing obscurely.
+status=$(aws cloudformation describe-stacks --stack-name "$stack" --query 'Stacks[0].StackStatus' \
+  --output text 2>/dev/null || echo NONE)
+if [[ $status == ROLLBACK_COMPLETE ]]; then
+  echo "stack $stack is in ROLLBACK_COMPLETE (its first create failed): an administrator must delete it," \
+    "then re-run this deploy (docs/deployment.md, \"When a deploy fails\")" >&2
+  exit 1
+fi
 # A failed update rolls back by itself, and the previous version keeps serving.
 aws cloudformation deploy --stack-name "$stack" --template-file build/app.packaged.yaml \
   --role-arn "$exec_role" \
