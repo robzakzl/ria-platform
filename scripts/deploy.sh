@@ -86,14 +86,17 @@ else
 fi
 (
   cd "$pages"
+  # The runner has no git identity; commits and the retry's rebase need one.
+  export GIT_AUTHOR_NAME="github-actions[bot]" GIT_COMMITTER_NAME="github-actions[bot]"
+  export GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+  export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
   rm -rf -- "./$env"
   mkdir -p "$env"
   cp -R ../../frontend/dist/. "$env/"
   printf '{"sha":"%s"}\n' "$sha" >"$env/version.json"
   touch .nojekyll
   git add -A
-  git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-    commit --quiet -m "deploy $env $sha" || echo "web app unchanged"
+  git commit --quiet -m "deploy $env $sha" || echo "web app unchanged"
   # A dev and a prod deploy may push at once; they touch different folders, so rebase and retry.
   for attempt in 1 2 3 4 5; do
     git push --quiet origin HEAD:refs/heads/gh-pages && break

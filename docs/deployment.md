@@ -11,7 +11,7 @@ stack below, which a person applies by hand.
 
 | Environment | Deployed from | URL |
 |---|---|---|
-| dev | every merge to `develop` | Web app: https://robzakzl.github.io/ria-platform/dev/ <br> API: DEV_API_URL_PENDING |
+| dev | every merge to `develop` | Web app: https://robzakzl.github.io/ria-platform/dev/ <br> API: printed by the command below (written here after the first deploy) |
 | prod | every merge to `main` | Web app: https://robzakzl.github.io/ria-platform/prod/ (from the first release) |
 
 The web app's URL is fixed by the repo name. The API's URL is the Lambda function URL
@@ -22,6 +22,12 @@ stack would change it. Read it from the stack at any time:
 aws cloudformation describe-stacks --region us-east-1 --stack-name ria-dev \
   --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text
 ```
+
+**Before the first deploy of the web app** (once per repo): GitHub Pages serves the `gh-pages` branch
+only after someone with admin access switches it on. The first deploy creates that branch and then
+fails its smoke test, because Pages is still off. Open **Settings → Pages → Build and deployment**,
+set Source to **Deploy from a branch**, branch `gh-pages`, folder `/ (root)`, choose **Save**, then
+re-run the failed deploy ([Deploy](#deploy)). On a private repo this needs a paid GitHub plan.
 
 Why GitHub Pages and not CloudFront: the AWS account cannot create CloudFront distributions until AWS
 Support verifies it (CloudFormation reports `Your account must be verified before you can add new
@@ -200,9 +206,7 @@ aws cloudformation describe-stack-events --region us-east-1 --stack-name ria-dev
   15 seconds while it resumes (longer after a day or more idle), so the page may first show
   `Database: down`; reload it.
 - **The web app is public.** GitHub Pages serves the site to anyone, even though the repo is private
-  (only demo data is deployed). Pages on a private repo needs a paid GitHub plan; it is switched on once
-  under **Settings → Pages → Build and deployment**: Source **Deploy from a branch**, branch `gh-pages`,
-  folder `/ (root)`.
+  (only demo data is deployed).
 - **The API URL is public too.** Anyone can call it; CORS only stops other websites' pages from reading
   its answers in a browser. CORS allows `GET` only; a future `POST`/`PUT` route must add its method to
   `FunctionUrlConfig.Cors` in `infra/app.yaml`.
