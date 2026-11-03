@@ -54,13 +54,14 @@ aws cloudformation deploy \
   --region us-east-1 \
   --stack-name ria-bootstrap \
   --template-file infra/bootstrap.yaml \
-  --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+  --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+  --no-fail-on-empty-changeset
 ```
 
 `CAPABILITY_NAMED_IAM` is needed because the stack creates IAM roles with fixed names.
 `CAPABILITY_AUTO_EXPAND` is needed because the template uses the `AWS::LanguageExtensions` transform
-(`Fn::ForEach` declares the dev and prod roles from one definition). A re-run with no changes prints
-`No changes to deploy` and succeeds.
+(`Fn::ForEach` declares the dev and prod roles from one definition). With
+`--no-fail-on-empty-changeset`, a re-run with no changes prints `No changes to deploy` and still exits 0.
 
 If the first apply fails because the provider `token.actions.githubusercontent.com` already exists, the
 account already has a GitHub OIDC provider (AWS allows one per URL). Delete the unused one
@@ -92,27 +93,29 @@ Never add `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` to GitHub. The OIDC rol
 # Trust: each role names exactly one branch of this repo.
 aws iam get-role --role-name ria-gh-deploy-dev --query Role.AssumeRolePolicyDocument
 aws iam get-role --role-name ria-gh-deploy-prod --query Role.AssumeRolePolicyDocument
-# A role can use the SAM transform (repeat with ria-gh-deploy-prod).
-aws iam simulate-principal-policy \
-  --policy-source-arn "arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/ria-gh-deploy-dev" \
-  --action-names cloudformation:CreateChangeSet \
-  --resource-arns arn:aws:cloudformation:us-east-1:aws:transform/Serverless-2016-10-31 \
-  --query 'EvaluationResults[].EvalDecision' --output text
+# The role may use the SAM and LanguageExtensions transforms (repeat with ria-gh-deploy-prod).
+aws iam get-role-policy --role-name ria-gh-deploy-dev --policy-name deploy \
+  --query "PolicyDocument.Statement[?Sid=='UseTransforms'].Resource"
 ```
 
-The first two print a condition with `token.actions.githubusercontent.com:sub` set to the branch, and the
-last prints `allowed`.
+The first two print a condition with `token.actions.githubusercontent.com:sub` set to the branch. The
+last prints the two `arn:aws:cloudformation:us-east-1:aws:transform/...` ARNs. Do not test the transform
+grant with `aws iam simulate-principal-policy`: the simulator cannot evaluate AWS-owned transform ARNs
+and answers `implicitDeny` even for a policy that allows every resource. The real test is the first
+deploy, which fails with `not authorized to perform: cloudformation:CreateChangeSet on resource:
+...transform/...` if the grant is missing.
 
 ### Permissions, and what to do when one is missing
 
 The deploy and execution roles list their actions one by one; there is no `*` action and no
 `AdministratorAccess`. Writes are limited to `ria-<env>-*` resources where AWS can scope them by name.
 Read-only `Describe` calls, and the CloudFront and security-group actions, apply account-wide, because
-those resources get generated ids rather than names.
+those resources get generated ids rather than names. So a `develop` deploy is not walled off from prod's
+CDN distribution and security groups at the IAM level; scoping those by resource tag is a known follow-up.
 
 The execution role may create or change an IAM role only if that role carries the permissions boundary
 `arn:aws:iam::<account id>:policy/ria-<env>-boundary`. So every role in an app template must set it,
-for example on a SAM function:
+for example on a SAM function, where `EnvName` is the app template's own `dev`/`prod` parameter:
 
 ```yaml
 PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/ria-${EnvName}-boundary
