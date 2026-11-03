@@ -2,13 +2,11 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::LanguageExtensions
 Description: >-
   ria-bootstrap - one-time, hand-applied stack (docs/deployment.md): the GitHub OIDC identity provider,
-  one deploy role per branch (develop -> dev, main -> prod), one CloudFormation execution role per
-  environment, and the deploy artifact bucket. Everything else is deployed by GitHub Actions.
+  the prod deploy role (trusted only from main), the prod CloudFormation execution role, and the deploy
+  artifact bucket. Everything else is deployed by GitHub Actions.
 
 Mappings:
   Branch:
-    dev:
-      GitRef: refs/heads/develop
     prod:
       GitRef: refs/heads/main
 
@@ -67,10 +65,11 @@ Resources:
               Bool:
                 aws:SecureTransport: "false"
 
-  # One copy per environment; ${Env} is dev or prod.
+  # One copy per environment; prod is the only one. ForEach keeps the live stack's logical ids
+  # (DeployRoleprod, CfnExecRoleprod, ...) stable.
   Fn::ForEach::Environments:
     - Env
-    - [dev, prod]
+    - [prod]
     - # Assumed by GitHub Actions, only from this repo's branch for this environment.
       DeployRole${Env}:
         Type: AWS::IAM::Role
@@ -490,17 +489,11 @@ Resources:
 
 Outputs:
   ArtifactBucket:
-    Description: Bucket for packaged deploy artifacts, one prefix per environment
+    Description: Bucket for packaged deploy artifacts, under the prefix prod/
     Value: !Ref ArtifactBucket
-  DeployRoleArnDev:
-    Description: Value of the GitHub variable AWS_DEPLOY_ROLE_ARN_DEV
-    Value: !GetAtt DeployRoledev.Arn
   DeployRoleArnProd:
     Description: Value of the GitHub variable AWS_DEPLOY_ROLE_ARN_PROD
     Value: !GetAtt DeployRoleprod.Arn
-  CfnExecRoleArnDev:
-    Description: CloudFormation execution role for ria-dev
-    Value: !GetAtt CfnExecRoledev.Arn
   CfnExecRoleArnProd:
     Description: CloudFormation execution role for ria-prod
     Value: !GetAtt CfnExecRoleprod.Arn

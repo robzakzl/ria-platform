@@ -1,18 +1,15 @@
 AWSTemplateFormatVersion: "2010-09-09"
-# LanguageExtensions first: it is what allows Fn::If in DeletionPolicy and UpdateReplacePolicy.
-Transform:
-  - AWS::LanguageExtensions
-  - AWS::Serverless-2016-10-31
+Transform: AWS::Serverless-2016-10-31
 Description: >-
-  ria-<env> - one ria-platform environment (stack ria-dev or ria-prod), applied by GitHub Actions through
+  ria-prod - the ria-platform production environment (prod is the only one), applied by GitHub Actions through
   scripts/deploy.sh (docs/deployment.md): the API on Lambda behind its HTTPS function URL and an Aurora
   Serverless v2 PostgreSQL database. The web app is served by GitHub Pages, not by this stack.
 
 Parameters:
   EnvName:
     Type: String
-    AllowedValues: [dev, prod]
-    Description: Environment name; every resource name starts with ria-<EnvName>-.
+    AllowedValues: [prod]
+    Description: Environment name (prod, the only one); every resource name starts with ria-<EnvName>-.
   GitSha:
     Type: String
     AllowedPattern: "^[0-9a-f]{40}$"
@@ -23,9 +20,6 @@ Parameters:
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Subnets in at least two availability zones that Lambda supports.
-
-Conditions:
-  IsProd: !Equals [!Ref EnvName, prod]
 
 Mappings:
   Web:
@@ -92,8 +86,8 @@ Resources:
 
   DbCluster:
     Type: AWS::RDS::DBCluster
-    DeletionPolicy: !If [IsProd, Snapshot, Delete]
-    UpdateReplacePolicy: !If [IsProd, Snapshot, Delete]
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
     Properties:
       DBClusterIdentifier: !Sub ria-${EnvName}-db
       Engine: aurora-postgresql
@@ -104,7 +98,7 @@ Resources:
       MasterUserPassword: !Sub "{{resolve:secretsmanager:${DbSecret}:SecretString:password}}"
       StorageEncrypted: true
       BackupRetentionPeriod: 1
-      DeletionProtection: !If [IsProd, true, false]
+      DeletionProtection: true
       DBSubnetGroupName: !Ref DbSubnetGroup
       VpcSecurityGroupIds:
         - !Ref DbSecurityGroup
@@ -178,7 +172,6 @@ Resources:
       Principal: "*"
       InvokedViaFunctionUrl: true
 
-# Output descriptions stay literal strings: an intrinsic there breaks the LanguageExtensions transform.
 Outputs:
   ApiUrl:
     Description: The API's public HTTPS URL (Lambda function URL, trailing slash)

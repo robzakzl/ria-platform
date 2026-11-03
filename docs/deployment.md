@@ -1,17 +1,16 @@
 # Deployment
 
 How ria-platform is deployed: the API and database on AWS (region `us-east-1`), the web app on GitHub
-Pages. In this doc `<env>` is `dev` (deployed from
-`develop`) or `prod` (deployed from `main`), and `<account id>` is your 12-digit AWS account id (see
-[Apply or update it](#apply-or-update-it)). Everything in AWS is declared in
+Pages. There is one environment, `prod`, deployed from `main`; there is no dev or staging. In this doc
+`<env>` is `prod` (resource names keep the `ria-<env>-` pattern), and `<account id>` is your 12-digit AWS
+account id (see [Apply or update it](#apply-or-update-it)). Everything in AWS is declared in
 CloudFormation templates under `infra/`. GitHub Actions applies them, with one exception: the bootstrap
 stack below, which a person applies by hand.
 
-## Environments and stacks
+## Environment and stacks
 
 | Environment | Deployed from | URL |
 |---|---|---|
-| dev | every merge to `develop` | Web app: https://robzakzl.github.io/ria-platform/dev/ <br> API: https://enhz3o4jxdjbwtvl6r2pmn2lku0zlyhl.lambda-url.us-east-1.on.aws |
 | prod | every merge to `main` | Web app: https://robzakzl.github.io/ria-platform/prod/ <br> API: https://2dwja3ukwdhpa2a7luhmbdns2q0mkcti.lambda-url.us-east-1.on.aws |
 
 The web app's URL is fixed by the repo name. The API's URL is the Lambda function URL
@@ -19,8 +18,8 @@ The web app's URL is fixed by the repo name. The API's URL is the Lambda functio
 stack would change it. Read it from the stack at any time:
 
 ```bash
-aws cloudformation describe-stacks --region us-east-1 --stack-name ria-dev \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text   # ria-prod for prod
+aws cloudformation describe-stacks --region us-east-1 --stack-name ria-prod \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text
 ```
 
 **GitHub Pages setting** (done for this repo; repeat it only for a new copy of the repo): GitHub Pages
@@ -35,14 +34,13 @@ CloudFront resources`). Moving the web app to CloudFront is a follow-up once tha
 
 | Stack | Template | Who applies it |
 |---|---|---|
-| `ria-bootstrap` | `infra/bootstrap.yaml` | A person, by hand, once ([One-time bootstrap](#one-time-bootstrap-oidc-deploy-roles)). |
-| `ria-dev` | `infra/app.yaml` with `EnvName=dev` | The `deploy-dev` job of `.github/workflows/ci.yml`. |
+| `ria-bootstrap` | `infra/bootstrap.yaml` | A person, by hand, once ([One-time bootstrap](#one-time-bootstrap-oidc-deploy-role)). |
 | `ria-prod` | `infra/app.yaml` with `EnvName=prod` | The `deploy-prod` job of `.github/workflows/ci.yml`. |
 
-Dev and prod come from the same template; only the parameters differ. Prod's database also has deletion
-protection, and is snapshotted rather than deleted if the stack ever removes or replaces it.
+Prod's database has deletion protection, and is snapshotted rather than deleted if the stack ever removes
+or replaces it.
 
-What one environment (`ria-<env>`) holds:
+What the environment (`ria-prod`) holds:
 
 | Piece | Name | Notes |
 |---|---|---|
@@ -52,7 +50,7 @@ What one environment (`ria-<env>`) holds:
 | API logs | CloudWatch log group `/aws/lambda/ria-<env>-api` | Kept 14 days. |
 
 The web app is not in the stack: it is the folder `<env>/` of the `gh-pages` branch, which GitHub Pages
-serves. Each deploy replaces only its own environment's folder.
+serves (`prod/`). Each deploy replaces only that folder.
 
 ## Monthly cost
 
@@ -62,14 +60,14 @@ for about 2–16 hours a month (it pauses after 5 idle minutes).
 
 The AWS account is on the **paid plan with $0 credits**. It has no 12-month free tier, so no free tier
 runs out: these prices are steady-state, today and after. The only free allowances are AWS's
-**Always Free** ones, which never expire and are shared by both environments: Lambda 1M requests and
+**Always Free** ones, which never expire: Lambda 1M requests and
 400,000 GB-seconds, CloudWatch Logs 5 GB. Everything else is billed from the first byte. GitHub Pages
 and GitHub Actions minutes cost nothing on this public repo.
 
-There is one row per resource in the three stacks, as listed by
-`aws cloudformation list-stack-resources --region us-east-1 --stack-name <stack>`. `ria-dev` and `ria-prod` hold the same resources, so their table is shared.
+There is one row per resource in the two stacks, as listed by
+`aws cloudformation list-stack-resources --region us-east-1 --stack-name <stack>`.
 
-**Per environment (`ria-dev`, and again for `ria-prod`):**
+**Production (`ria-prod`):**
 
 | Stack resource (logical id, type) | USD / month | Always Free? | Why nothing cheaper works |
 |---|---|---|---|
@@ -87,7 +85,7 @@ There is one row per resource in the three stacks, as listed by
 | `DbSecurityGroup` (`AWS::EC2::SecurityGroup`) | $0 | n/a, no charge | — |
 | `DbFromApiIngress` (`AWS::EC2::SecurityGroupIngress`) | $0 | n/a, no charge | — |
 | `DbSubnetGroup` (`AWS::RDS::DBSubnetGroup`) | $0 | n/a, no charge | — |
-| **Per environment** | **about $0.60–1.50** | | |
+| **`ria-prod` total** | **about $0.60–1.50** | | |
 
 The web app (GitHub Pages, `gh-pages` branch) costs $0. The database is private and has no public IP,
 so there is no public IPv4 charge.
@@ -99,29 +97,27 @@ so there is no public IPv4 charge.
 | `ArtifactBucket` (`AWS::S3::Bucket`, objects expire after 30 days) | under $0.01 | No | A few MB of deploy packages at $0.023 per GB-month, plus a few hundred requests. CloudFormation needs the Lambda package in S3, and there is no cheaper store for it. |
 | `ArtifactBucketPolicy` (`AWS::S3::BucketPolicy`) | $0 | n/a, no charge | — |
 | `GitHubOidcProvider` (`AWS::IAM::OIDCProvider`) | $0 | n/a, no charge | — |
-| `DeployRoledev` (`AWS::IAM::Role`) | $0 | n/a, no charge | — |
 | `DeployRoleprod` (`AWS::IAM::Role`) | $0 | n/a, no charge | — |
-| `CfnExecRoledev` (`AWS::IAM::Role`) | $0 | n/a, no charge | — |
 | `CfnExecRoleprod` (`AWS::IAM::Role`) | $0 | n/a, no charge | — |
-| `RoleBoundarydev` (`AWS::IAM::ManagedPolicy`) | $0 | n/a, no charge | — |
 | `RoleBoundaryprod` (`AWS::IAM::ManagedPolicy`) | $0 | n/a, no charge | — |
 | **Shared total** | **under $0.01** | | |
 
-**Total, both environments and bootstrap: about $1.20–3.00 per month.** That is about $0.80 for the two
-secrets, $0.20 for database storage, and $0.24–1.92 for database compute, depending on how many hours
-the databases are awake. Each extra awake hour costs $0.06 per environment. If a database never pauses
+**Total, prod and bootstrap: about $0.60–1.50 per month.** That is about $0.40 for the secret, $0.10 for
+database storage, and $0.12–0.96 for database compute, depending on how many hours the database is awake.
+Each extra awake hour costs $0.06. If the database never pauses
 (for example something calls it every few minutes), it costs about $44 a month at 0.5 ACU, and up to about $88 at the 1-ACU cap. Check the
 real bill under **Billing and Cost Management → Bills** in the AWS console.
 
 ## Deploy
 
-**Normal deploy: merge a PR.** Every push to `develop` or `main` (in practice, a merged PR) runs the
-`CI` workflow (`.github/workflows/ci.yml`):
+**Normal deploy: merge a PR into `main`.** Every push to `main` (in practice, a merged PR) runs the `CI`
+workflow (`.github/workflows/ci.yml`), whose two jobs start together:
 
 1. `check` runs `./dc check full`, the same gate as on every PR.
-2. Only if `check` passed, `deploy-dev` (on `develop`) or `deploy-prod` (on `main`) runs
-   `scripts/deploy.sh <env> <commit sha>`. A red `check` skips the deploy. PRs never deploy, a push to
-   `develop` never touches prod, and a push to `main` never touches dev.
+2. `deploy-prod` runs `scripts/deploy.sh prod <commit sha>`. It does not wait for `check`: every merge
+   reaches production even if the post-merge `check` turns red, so the PR's own green gate is what keeps
+   a broken change out. A red `check` on `main` means prod may be running that commit: fix or roll back
+   ([Roll back](#roll-back)). PRs never deploy.
 
 `scripts/deploy.sh` first checks the AWS identity (the job fails there if GitHub could not assume the
 deploy role), builds the API package, applies the `ria-<env>` stack, builds the web app pointed at the
@@ -143,10 +139,10 @@ GitHub Pages caches pages for up to 10 minutes, so a browser may show the previo
 after a deploy; reload after a few minutes.
 
 **Re-run a deploy** (for example after a transient failure). These commands use the GitHub CLI `gh`,
-signed in with `gh auth login`; `<branch>` is `develop` (dev) or `main` (prod):
+signed in with `gh auth login`:
 
 ```bash
-gh run list --repo robzakzl/ria-platform --workflow ci.yml --branch <branch> --event push --limit 5
+gh run list --repo robzakzl/ria-platform --workflow ci.yml --branch main --event push --limit 5
 gh run rerun <run id> --repo robzakzl/ria-platform --failed
 ```
 
@@ -156,7 +152,7 @@ workflow, open the run, and choose **Re-run jobs → Re-run failed jobs**.
 
 ## Roll back
 
-A rollback redeploys an earlier commit of the branch with the `Rollback` workflow
+A rollback redeploys an earlier commit of `main` to prod with the `Rollback` workflow
 (`.github/workflows/rollback.yml`). It runs that commit's own `scripts/deploy.sh`, smoke test included.
 It changes code and infrastructure only; database data is not rolled back.
 
@@ -164,23 +160,18 @@ It changes code and infrastructure only; database data is not rolled back.
    it ran; take the newest one before the bad change:
 
    ```bash
-   # dev
-   gh run list --repo robzakzl/ria-platform --workflow ci.yml --branch develop --event push --status success \
+   gh run list --repo robzakzl/ria-platform --workflow ci.yml --branch main --event push --status success \
      --limit 10 --json headSha,displayTitle,createdAt --jq '.[] | "\(.headSha)  \(.displayTitle)  \(.createdAt)"'
-   # prod: the same with --branch main
    ```
 
 2. Run the rollback, replacing `<sha>` with the full 40-character SHA from step 1:
 
    ```bash
-   # dev
-   gh workflow run rollback.yml --repo robzakzl/ria-platform --ref develop -f sha=<sha>
-   # prod
    gh workflow run rollback.yml --repo robzakzl/ria-platform --ref main -f sha=<sha>
    ```
 
-   In the browser: **Actions → Rollback → Run workflow**, pick the branch (`develop` for dev, `main` for
-   prod), paste the SHA, and choose **Run workflow**.
+   In the browser: **Actions → Rollback → Run workflow**, keep the branch `main`, paste the SHA, and
+   choose **Run workflow**.
 
 3. Wait a few seconds for the run to appear, then watch it and check the result (`<web url>` as in
    [Deploy](#deploy)):
@@ -194,14 +185,12 @@ It changes code and infrastructure only; database data is not rolled back.
 
 Limits:
 
-- The SHA must be a state the branch itself was in (a merge commit on it, as step 1 lists), at or after
+- The SHA must be a state `main` itself was in (a merge commit on it, as step 1 lists), at or after
   the commit that added `scripts/deploy.sh`; older commits cannot deploy themselves.
-- A rollback waits in the same queue as the branch's deploys. GitHub keeps only one waiting run per
+- A rollback waits in the same queue as the prod deploys. GitHub keeps only one waiting run per
   queue, so a rollback still waiting when a new merge arrives can be replaced by that merge's deploy.
-- GitHub offers a `workflow_dispatch` workflow only once it exists on the default branch (`main`).
-  Until the first release reaches `main`, roll dev back by reverting the bad change in a PR to `develop`
-  (`git revert <bad sha>`, where `<bad sha>` is the bad merge commit); merging it deploys the reverted code.
-- The next merge to the branch deploys over the rollback, so fix or revert the bad change as well.
+- The next merge to `main` deploys over the rollback, so fix or revert the bad change as well (a PR with
+  `git revert <bad sha>`, where `<bad sha>` is the bad merge commit; merging it deploys the reverted code).
 
 ## When a deploy fails
 
@@ -210,32 +199,32 @@ Limits:
   Fix the change and merge again.
 - **The stack update succeeds but the smoke test fails**: the new version is live and the run is red.
   Roll back to the last green SHA ([Roll back](#roll-back)), then fix the change.
-- **The very first deploy of an environment fails**: the stack is left in `ROLLBACK_COMPLETE`, which
-  cannot be updated. An administrator deletes it (the deploy roles cannot), then re-runs the deploy:
+- **The very first deploy of a new stack fails**: the stack is left in `ROLLBACK_COMPLETE`, which
+  cannot be updated. An administrator deletes it (the deploy role cannot), then re-runs the deploy:
 
   ```bash
-  aws cloudformation delete-stack --region us-east-1 --stack-name ria-<env>
-  aws cloudformation wait stack-delete-complete --region us-east-1 --stack-name ria-<env>
+  aws cloudformation delete-stack --region us-east-1 --stack-name ria-prod
+  aws cloudformation wait stack-delete-complete --region us-east-1 --stack-name ria-prod
   ```
 
   Never do this to a `ria-prod` that has served users; its database has deletion protection for that reason.
 
 ## Read the logs
 
-The `aws` commands need AWS CLI v2 signed in to the account with read access (the deploy roles work only
+The `aws` commands need AWS CLI v2 signed in to the account with read access (the deploy role works only
 inside GitHub Actions); [Apply or update it](#apply-or-update-it) shows how to sign in and find
-`<account id>`. Replace `dev` with `prod` for production.
+`<account id>`.
 
 **API logs** (requests, errors and stack traces from the FastAPI app):
 
 ```bash
-aws logs tail /aws/lambda/ria-dev-api --region us-east-1 --since 15m --follow
+aws logs tail /aws/lambda/ria-prod-api --region us-east-1 --since 15m --follow
 ```
 
 Leave out `--follow` to print and exit; `--since 2h` or `--since 1d` looks further back.
 
 **Web logs.** GitHub Pages keeps no access logs. What the web app's deploy published is in the history
-of the `gh-pages` branch (one commit per deploy, titled `deploy <env> <sha>`):
+of the `gh-pages` branch (one commit per deploy, titled `deploy prod <sha>`):
 
 ```bash
 git fetch origin gh-pages && git log --oneline -10 origin/gh-pages
@@ -255,7 +244,7 @@ gh run view <run id> --repo robzakzl/ria-platform --log-failed   # only the fail
 What CloudFormation did, newest first, with the reason for any failure:
 
 ```bash
-aws cloudformation describe-stack-events --region us-east-1 --stack-name ria-dev --max-items 30 \
+aws cloudformation describe-stack-events --region us-east-1 --stack-name ria-prod --max-items 30 \
   --query 'StackEvents[].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' --output table
 ```
 
@@ -273,7 +262,7 @@ aws cloudformation describe-stack-events --region us-east-1 --stack-name ria-dev
   secret into the API's `DATABASE_URL`, so anyone allowed to read the Lambda function's configuration can
   see it. Moving to RDS IAM authentication is a known follow-up.
 
-## One-time bootstrap (OIDC deploy roles)
+## One-time bootstrap (OIDC deploy role)
 
 ### What it holds
 
@@ -283,19 +272,17 @@ before it can deploy anything:
 | Resource | Name | Purpose |
 |---|---|---|
 | GitHub OIDC identity provider | `token.actions.githubusercontent.com` | Lets a GitHub Actions run exchange its signed identity token for short-lived AWS credentials, so no AWS access key is stored in GitHub. |
-| Deploy role, dev | `ria-gh-deploy-dev` | Assumed by GitHub Actions only from a workflow run on `develop` of `robzakzl/ria-platform`. Can change the `ria-dev` stack, upload to its own buckets and artifact prefix, invalidate the CDN cache and read the function logs. |
-| Deploy role, prod | `ria-gh-deploy-prod` | The same for `main` and the `ria-prod` stack. A `develop` run can never get prod credentials. |
-| CloudFormation execution roles | `ria-cfn-exec-dev`, `ria-cfn-exec-prod` | Assumed by CloudFormation only. They create the app resources, which are all named `ria-<env>-*`. The deploy role can only hand its own environment's execution role to CloudFormation. |
-| Role permissions boundaries | `ria-dev-boundary`, `ria-prod-boundary` | The ceiling for every IAM role the app stack creates (see below). |
-| Artifact bucket | `ria-artifacts-<account id>` | Packaged deploy artifacts under `dev/` and `prod/`. Private, encrypted, objects expire after 30 days. |
+| Deploy role | `ria-gh-deploy-prod` | Assumed by GitHub Actions only from a workflow run on `main` of `robzakzl/ria-platform`. Can change the `ria-prod` stack, upload to its own buckets and artifact prefix, invalidate the CDN cache and read the function logs. |
+| CloudFormation execution role | `ria-cfn-exec-prod` | Assumed by CloudFormation only. It creates the app resources, which are all named `ria-prod-*`. The deploy role can only hand this execution role to CloudFormation. |
+| Role permissions boundary | `ria-prod-boundary` | The ceiling for every IAM role the app stack creates (see below). |
+| Artifact bucket | `ria-artifacts-<account id>` | Packaged deploy artifacts under `prod/`. Private, encrypted, objects expire after 30 days. |
 
-Its outputs are `ArtifactBucket`, `DeployRoleArnDev`, `DeployRoleArnProd`, `CfnExecRoleArnDev` and
-`CfnExecRoleArnProd`.
+Its outputs are `ArtifactBucket`, `DeployRoleArnProd` and `CfnExecRoleArnProd`.
 
-The trust policy pins each deploy role to one branch of this repo, audience `sts.amazonaws.com`. This
-repo's tokens carry GitHub's immutable subject, with the owner's and repo's numeric ids:
-`repo:robzakzl@7282725/ria-platform@1443168370:ref:refs/heads/develop` (dev) or `...:ref:refs/heads/main`
-(prod); the plain form `repo:robzakzl/ria-platform:ref:refs/heads/<branch>` is accepted too. GitHub
+The trust policy pins the deploy role to `main` of this repo, audience `sts.amazonaws.com`. This repo's
+tokens carry GitHub's immutable subject, with the owner's and repo's numeric ids:
+`repo:robzakzl@7282725/ria-platform@1443168370:ref:refs/heads/main`; the plain form
+`repo:robzakzl/ria-platform:ref:refs/heads/main` is accepted too. GitHub
 shows which form the repo uses at `repos/robzakzl/ria-platform/actions/oidc/customization/sub`. A deploy
 job therefore must not set a GitHub `environment:` key, and nobody may customise the repo's OIDC subject
 claim template: either changes the subject, and the role then refuses the token (`Not authorized to
@@ -333,7 +320,7 @@ aws cloudformation deploy \
 
 `CAPABILITY_NAMED_IAM` is needed because the stack creates IAM roles with fixed names.
 `CAPABILITY_AUTO_EXPAND` is needed because the template uses the `AWS::LanguageExtensions` transform
-(`Fn::ForEach` declares the dev and prod roles from one definition). With
+(`Fn::ForEach` declares the per-environment roles, today only prod's). With
 `--no-fail-on-empty-changeset`, a re-run with no changes prints `No changes to deploy` and still exits 0.
 
 If the first apply fails because the provider `token.actions.githubusercontent.com` already exists, the
@@ -353,15 +340,14 @@ aws cloudformation describe-stacks --region us-east-1 --stack-name ria-bootstrap
   --query 'Stacks[0].Outputs[].[OutputKey,OutputValue]' --output table
 ```
 
-### Give GitHub the role ARNs
+### Give GitHub the role ARN
 
-The workflows read the role ARNs from two repository **variables**, not secrets: an ARN is not a
+The workflows read the role ARN from a repository **variable**, not a secret: an ARN is not a
 credential. In GitHub, open the repo's **Settings → Secrets and variables → Actions → Variables** tab, choose
 **New repository variable**, and create:
 
 | Variable name | Value |
 |---|---|
-| `AWS_DEPLOY_ROLE_ARN_DEV` | the `DeployRoleArnDev` output, `arn:aws:iam::<account id>:role/ria-gh-deploy-dev` |
 | `AWS_DEPLOY_ROLE_ARN_PROD` | the `DeployRoleArnProd` output, `arn:aws:iam::<account id>:role/ria-gh-deploy-prod` |
 
 Never add `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` to GitHub. The OIDC roles replace them.
@@ -369,16 +355,15 @@ Never add `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` to GitHub. The OIDC rol
 ### Check it
 
 ```bash
-# Trust: each role names exactly one branch of this repo.
-aws iam get-role --role-name ria-gh-deploy-dev --query Role.AssumeRolePolicyDocument
+# Trust: the role names exactly one branch of this repo (main).
 aws iam get-role --role-name ria-gh-deploy-prod --query Role.AssumeRolePolicyDocument
-# The role may use the SAM and LanguageExtensions transforms (repeat with ria-gh-deploy-prod).
-aws iam get-role-policy --role-name ria-gh-deploy-dev --policy-name deploy \
+# The role may use the SAM and LanguageExtensions transforms.
+aws iam get-role-policy --role-name ria-gh-deploy-prod --policy-name deploy \
   --query "PolicyDocument.Statement[?Sid=='UseTransforms'].Resource"
 ```
 
-The first two print a condition with `token.actions.githubusercontent.com:sub` set to the branch. The
-last prints the two `arn:aws:cloudformation:us-east-1:aws:transform/...` ARNs. Do not test the transform
+The first prints a condition with `token.actions.githubusercontent.com:sub` set to `main`. The second
+prints the two `arn:aws:cloudformation:us-east-1:aws:transform/...` ARNs. Do not test the transform
 grant with `aws iam simulate-principal-policy`: the simulator cannot evaluate AWS-owned transform ARNs
 and answers `implicitDeny` even for a policy that allows every resource. The real test is the first
 deploy, which fails with `not authorized to perform: cloudformation:CreateChangeSet on resource:
@@ -387,21 +372,21 @@ deploy, which fails with `not authorized to perform: cloudformation:CreateChange
 ### Permissions, and what to do when one is missing
 
 The deploy and execution roles list their actions one by one; there is no `*` action and no
-`AdministratorAccess`. Writes are limited to `ria-<env>-*` resources where AWS can scope them by name.
+`AdministratorAccess`. Writes are limited to `ria-prod-*` resources where AWS can scope them by name.
 Read-only `Describe` calls, and the CloudFront, security-group, network-interface and EC2 tag actions,
-apply account-wide, because those resources get generated ids rather than names. So a `develop` deploy is not walled off from prod's
-CDN distribution and security groups at the IAM level; scoping those by resource tag is a known follow-up.
+apply account-wide, because those resources get generated ids rather than names; scoping those by resource
+tag is a known follow-up.
 
 The execution role may create an IAM role, or add permissions to one, only if that role carries the permissions boundary
 `arn:aws:iam::<account id>:policy/ria-<env>-boundary`. So every role in an app template must set it,
-for example on a SAM function, where `EnvName` is the app template's own `dev`/`prod` parameter:
+for example on a SAM function, where `EnvName` is the app template's own parameter (`prod`):
 
 ```yaml
 PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/ria-${EnvName}-boundary
 ```
 
 The boundary caps those roles at writing their own Lambda logs, using VPC network interfaces, reading
-`ria-<env>/*` secrets, using `ria-<env>-*` buckets and sending X-Ray traces. Without it, anyone who could merge to `develop`
+`ria-<env>/*` secrets, using `ria-<env>-*` buckets and sending X-Ray traces. Without it, anyone who could merge to `main`
 could create an administrator role.
 
 If a deploy fails with `AccessDenied`, add only the action the error names to the right role (or the

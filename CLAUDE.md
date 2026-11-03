@@ -13,14 +13,15 @@ TypeScript web app (`frontend/`), PostgreSQL, all run locally by `compose.yaml` 
   working default.
 - Never commit `.env` or a secret. A secret the code needs goes in the environment, with its name in
   `.env.example` and no value.
-- Branch from `develop`; deliver through a PR into `develop`. Never push to `develop` or `main`.
+- Branch from `main`; deliver through a PR into `main`. Never push to `main`. Every merge to `main`
+  deploys to production at once; there is no other environment.
 
 ## Router
 
 | Topic | Read |
 |---|---|
 | Layout, run, test, conventions, landmines | [docs/development.md](docs/development.md) |
-| Deployment: dev/prod URLs, monthly cost, deploy, roll back, failed deploys, logs, known constraints, OIDC bootstrap stack, deploy roles, GitHub role variables | [docs/deployment.md](docs/deployment.md) |
+| Deployment (prod only): prod URLs, monthly cost, auto-deploy on merge to main, roll back, failed deploys, logs, known constraints, OIDC bootstrap stack, deploy role, GitHub role variable | [docs/deployment.md](docs/deployment.md) |
 | How this repo's agent context is shaped (single home, pointers not copies) | `/usr/lib/jaahd/docs/policies/context-architecture.md` |
 | Which agent instrumentation this stack warrants | `/usr/lib/jaahd/docs/policies/agentic-instrumentation.md` |
 | Running several worktrees of this repo side by side (ports, stack names) | `/usr/lib/jaahd/docs/policies/worktree-pool-policy.md` |
