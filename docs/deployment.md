@@ -123,7 +123,8 @@ workflow (`.github/workflows/ci.yml`), whose two jobs start together:
 deploy role), builds the API package, applies the `ria-<env>` stack, builds the web app pointed at the
 API's URL, and pushes it with a `version.json` to the `gh-pages` branch. Finally it smoke-tests both:
 the API's `/api/health/db` must answer `{"status":"ok","database":"ok"}` with the Pages origin allowed by
-CORS, and the web app's `version.json` must name the commit just deployed and its page must load. The
+CORS, `/api/accounts` must list at least 50 accounts (the first such request creates and seeds the
+table), and the web app's `version.json` must name the commit just deployed and its page must load. The
 job is green only if all of that passed (GitHub Pages takes a minute or two to publish a push; the smoke
 test waits up to 5 minutes). Deploys of one environment queue; they
 never overlap.

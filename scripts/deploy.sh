@@ -126,20 +126,25 @@ while :; do
     tr -d '\r' | sed -n 's/^access-control-allow-origin: *//Ip' || true)
   got_sha=$(curl -fsS --max-time 10 "$site/version.json?smoke=$SECONDS" 2>/dev/null |
     python3 -c 'import json, sys; print(json.load(sys.stdin)["sha"])' 2>/dev/null || true)
+  # The first accounts request creates and seeds the table (backend/app/accounts.py): expect >= 50.
+  accounts=$(curl -fsS --max-time 35 "$api/api/accounts" 2>/dev/null |
+    python3 -c 'import json, sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
   page=$(curl -fsS --max-time 10 "$site/?smoke=$SECONDS" 2>/dev/null || true)
   page_ok=no
   [[ $page == *'<div id="root">'* && $page == *"/$name/$env/assets/"* ]] && page_ok=yes
-  if [[ $db == "$want_db" && $cors == "$pages_origin" && $got_sha == "$sha" && $page_ok == yes ]]; then
+  if [[ $db == "$want_db" && $cors == "$pages_origin" && $got_sha == "$sha" && $page_ok == yes ]] &&
+    ((accounts >= 50)); then
     break
   fi
   if ((SECONDS >= deadline)); then
-    echo "smoke test failed: $api/api/health/db='$db' CORS allow-origin='$cors'" \
+    echo "smoke test failed: $api/api/health/db='$db' CORS allow-origin='$cors' accounts=$accounts" \
       "$site/version.json sha='$got_sha' web page ok=$page_ok" >&2
     exit 1
   fi
   sleep 10
 done
 echo "$api/api/health/db -> $db (CORS allows $cors)"
+echo "$api/api/accounts -> $accounts accounts"
 echo "$site/version.json -> $got_sha"
 echo "deployed $sha to $env: $site/"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
