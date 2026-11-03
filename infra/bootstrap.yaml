@@ -251,6 +251,13 @@ Resources:
               PolicyDocument:
                 Version: "2012-10-17"
                 Statement:
+                  # CloudFormation authorizes the app template's transforms against this role.
+                  - Sid: UseTransforms
+                    Effect: Allow
+                    Action: cloudformation:CreateChangeSet
+                    Resource:
+                      - !Sub arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
+                      - !Sub arn:aws:cloudformation:${AWS::Region}:aws:transform/LanguageExtensions
                   - Sid: Lambda
                     Effect: Allow
                     Action:

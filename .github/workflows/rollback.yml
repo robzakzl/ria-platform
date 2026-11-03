@@ -1,0 +1,60 @@
+name: Rollback
+
+# Redeploys an earlier commit of a branch to its environment: run from `develop` for dev, from `main`
+# for prod (docs/deployment.md, "Roll back"). It runs that commit's own scripts/deploy.sh.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character commit SHA on this branch to redeploy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # id-token: assume the AWS deploy role (OIDC). contents: write: push the web app to gh-pages.
+    permissions:
+      id-token: write
+      contents: write
+    # The same queue as the branch's deploy job, so a rollback and a deploy never overlap.
+    concurrency:
+      group: deploy-${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+      cancel-in-progress: false
+    env:
+      SHA: ${{ inputs.sha }}
+    steps:
+      - name: Pick the environment from the branch
+        id: target
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/develop) echo "env=dev" >>"$GITHUB_OUTPUT"; echo "branch=develop" >>"$GITHUB_OUTPUT" ;;
+            refs/heads/main)    echo "env=prod" >>"$GITHUB_OUTPUT"; echo "branch=main" >>"$GITHUB_OUTPUT" ;;
+            *) echo "Run this workflow from develop (dev) or main (prod), not $GITHUB_REF" >&2; exit 1 ;;
+          esac
+          [[ $SHA =~ ^[0-9a-f]{40}$ ]] || { echo "sha must be a full 40-character commit SHA" >&2; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # First-parent only: a state the branch itself was in (a merge CI deployed), never a commit from
+      # inside a merged PR branch that was never deployed on its own.
+      - name: Check the commit is a state of the branch, then check it out
+        run: |
+          git rev-list --first-parent "origin/${{ steps.target.outputs.branch }}" | grep -qx "$SHA" ||
+            { echo "$SHA is not a first-parent commit of ${{ steps.target.outputs.branch }}" >&2; exit 1; }
+          git checkout --detach "$SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ROLE_ARN_PROD || vars.AWS_DEPLOY_ROLE_ARN_DEV }}
+          aws-region: us-east-1
+      - run: scripts/deploy.sh "${{ steps.target.outputs.env }}" "$SHA"

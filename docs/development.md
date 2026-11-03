@@ -13,9 +13,12 @@ How to build, run and test ria-platform. This file is the single home for those 
 | `dc` | The one entrypoint: starts and stops the stack and runs the checks. |
 | `scripts/check.sh` | The checks `./dc check` runs. |
 | `infra/bootstrap.yaml` | The one-time AWS bootstrap stack (GitHub OIDC deploy roles); see [deployment.md](deployment.md). |
-| `.github/workflows/ci.yml` | CI: runs `./dc check full` on every push to `main`/`develop` and every PR. |
+| `infra/app.yaml`, `infra/lambda/run.sh` | One AWS environment (`ria-dev`, `ria-prod`) and the API's Lambda handler; see [deployment.md](deployment.md). |
+| `scripts/deploy.sh`, `scripts/build-lambda.sh` | Deploy one environment; build the API's Lambda package into `build/api`. Run by CI, not by hand. |
+| `.github/workflows/ci.yml` | CI: runs `./dc check full` on every push to `main`/`develop` and every PR, then deploys a push to `develop` to dev and to `main` to prod. |
+| `.github/workflows/rollback.yml` | Manual redeploy of an earlier commit; see [deployment.md](deployment.md). |
 
-Generated, never committed: `backend/.venv/`, `frontend/node_modules/`, `frontend/dist/`.
+Generated, never committed: `backend/.venv/`, `frontend/node_modules/`, `frontend/dist/`, `build/`.
 
 ## Prerequisites
 
@@ -51,7 +54,7 @@ cd frontend && npm ci && npm run dev
 
 | Command | What it runs | Time |
 |---|---|---|
-| `./dc check quick` | Back end: `ruff check`, `ruff format --check`, `pytest`. Web: `tsc` type-check, `vitest`. | ~25s cold, seconds warm |
+| `./dc check quick` | Back end: `ruff check`, `ruff format --check`, `pytest`. Infra: `cfn-lint infra/*.yaml` (offline). Web: `tsc` type-check, `vitest`. | ~25s cold, seconds warm |
 | `./dc check full` | Quick, plus the web production build and a smoke test: brings the stack up, checks the API reaches the database and the web app reaches the API, then stops whatever the check itself started; services you already had running stay up. | ~1 min |
 
 Both install missing dependencies themselves, stop at the first failure, and end with
