@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: "2010-09-09"
+# LanguageExtensions first: it is what allows Fn::If in DeletionPolicy and UpdateReplacePolicy.
+Transform:
+  - AWS::LanguageExtensions
+  - AWS::Serverless-2016-10-31
+Description: >-
+  ria-<env> - one ria-platform environment (stack ria-dev or ria-prod), applied by GitHub Actions through
+  scripts/deploy.sh (docs/deployment.md): the API on Lambda behind its HTTPS function URL and an Aurora
+  Serverless v2 PostgreSQL database. The web app is served by GitHub Pages, not by this stack.
+
+Parameters:
+  EnvName:
+    Type: String
+    AllowedValues: [dev, prod]
+    Description: Environment name; every resource name starts with ria-<EnvName>-.
+  GitSha:
+    Type: String
+    AllowedPattern: "^[0-9a-f]{40}$"
+    Description: Full commit SHA being deployed; exposed to the API as GIT_SHA.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for the database and the API function (the account's default VPC).
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets in at least two availability zones that Lambda supports.
+
+Conditions:
+  IsProd: !Equals [!Ref EnvName, prod]
+
+Mappings:
+  Web:
+    Pages:
+      # The GitHub Pages origin that serves the web app; the only origin the API answers CORS for.
+      Origin: https://robzakzl.github.io
+
+Resources:
+  # --- Database ------------------------------------------------------------------------------------
+
+  # The master password is generated here and never leaves AWS.
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ria-${EnvName}/db
+      Description: !Sub Master login of the ria-${EnvName} Aurora cluster
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"ria"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludePunctuation: true
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub ria-${EnvName}-db
+      DBSubnetGroupDescription: !Sub ria-${EnvName} database subnets
+      SubnetIds: !Ref SubnetIds
+
+  ApiSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ria-${EnvName} API function
+      VpcId: !Ref VpcId
+      # Replaces the default allow-all egress: the function may only reach the database.
+      SecurityGroupEgress:
+        - Description: PostgreSQL to the database
+          IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          DestinationSecurityGroupId: !Ref DbSecurityGroup
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ria-${EnvName} database
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - Description: No traffic (placeholder that removes the default allow-all rule)
+          IpProtocol: icmp
+          FromPort: 252
+          ToPort: 86
+          CidrIp: 127.0.0.1/32
+
+  DbFromApiIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref DbSecurityGroup
+      Description: PostgreSQL from the API function only
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref ApiSecurityGroup
+
+  DbCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: !If [IsProd, Snapshot, Delete]
+    UpdateReplacePolicy: !If [IsProd, Snapshot, Delete]
+    Properties:
+      DBClusterIdentifier: !Sub ria-${EnvName}-db
+      Engine: aurora-postgresql
+      EngineVersion: "17.11"
+      DatabaseName: ria
+      Port: 5432
+      MasterUsername: ria
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DbSecret}:SecretString:password}}"
+      StorageEncrypted: true
+      BackupRetentionPeriod: 1
+      DeletionProtection: !If [IsProd, true, false]
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DbSecurityGroup
+      # Scales to zero after 5 idle minutes; the first request after that waits ~15 s for it to resume.
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0
+        MaxCapacity: 1
+        SecondsUntilAutoPause: 300
+
+  DbInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub ria-${EnvName}-db-1
+      DBClusterIdentifier: !Ref DbCluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      PubliclyAccessible: false
+
+  # --- API -----------------------------------------------------------------------------------------
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/ria-${EnvName}-api
+      RetentionInDays: 14
+
+  # FastAPI under uvicorn, wrapped by the Lambda Web Adapter layer (infra/lambda/run.sh starts it).
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: ApiLogGroup
+    Properties:
+      FunctionName: !Sub ria-${EnvName}-api
+      Description: !Sub ria-${EnvName} API (FastAPI)
+      CodeUri: ../build/api
+      Handler: run.sh
+      Runtime: python3.13
+      Architectures: [arm64]
+      MemorySize: 512
+      Timeout: 30
+      Layers:
+        - arn:aws:lambda:us-east-1:753240598075:layer:LambdaAdapterLayerArm64:30
+      PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/ria-${EnvName}-boundary
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds:
+          - !Ref ApiSecurityGroup
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_PORT: "8000"
+          AWS_LWA_READINESS_CHECK_PATH: /api/health
+          # Long enough for a paused Aurora cluster to resume.
+          DB_CONNECT_TIMEOUT: "25"
+          GIT_SHA: !Ref GitSha
+          DATABASE_URL: !Sub "postgresql://ria:{{resolve:secretsmanager:${DbSecret}:SecretString:password}}@${DbCluster.Endpoint.Address}:5432/ria?sslmode=require"
+      # Public HTTPS URL. CORS lets only pages on the GitHub Pages origin read its answers in a browser.
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - !FindInMap [Web, Pages, Origin]
+          AllowMethods: [GET]
+          MaxAge: 300
+
+  # A public function URL needs both grants; SAM adds lambda:InvokeFunctionUrl, this adds the other.
+  PublicInvokeViaUrl:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+# Output descriptions stay literal strings: an intrinsic there breaks the LanguageExtensions transform.
+Outputs:
+  ApiUrl:
+    Description: The API's public HTTPS URL (Lambda function URL, trailing slash)
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl
+  ApiFunctionName:
+    Description: API Lambda function name
+    Value: !Ref ApiFunction
+  ApiLogGroup:
+    Description: API log group
+    Value: !Ref ApiLogGroup

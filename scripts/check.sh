@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The repo's checks. Run through ./dc: `./dc check quick` or `./dc check full`.
-#   quick: back-end lint, format and unit tests; web type-check and unit tests.
+#   quick: back-end lint, format and unit tests; CloudFormation lint (offline); web type-check and unit tests.
 #   full:  quick, plus the web production build and a smoke test of the whole stack in containers.
 # Exits non-zero on the first failure; the last line is `GATE <tier>: PASS|FAIL`.
 set -euo pipefail
@@ -39,6 +39,7 @@ quick() {
   step "back-end lint";   (cd backend && .venv/bin/ruff check .)
   step "back-end format"; (cd backend && .venv/bin/ruff format --check .)
   step "back-end tests";  (cd backend && .venv/bin/pytest -q)
+  step "infra lint";      backend/.venv/bin/cfn-lint infra/*.yaml
   frontend_deps
   step "web type-check";  (cd frontend && npm run --silent typecheck)
   step "web tests";       (cd frontend && npm run --silent test)

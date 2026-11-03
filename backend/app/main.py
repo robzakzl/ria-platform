@@ -16,12 +16,13 @@ def health() -> dict[str, str]:
 
 @app.get("/api/health/db")
 def health_db() -> dict[str, str]:
-    """Readiness: the API can reach PostgreSQL at DATABASE_URL."""
+    """Readiness: the API can reach PostgreSQL at DATABASE_URL within DB_CONNECT_TIMEOUT seconds."""
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise HTTPException(status_code=503, detail="DATABASE_URL is not set")
     try:
-        with psycopg.connect(url, connect_timeout=3) as conn:
+        timeout = int(os.environ.get("DB_CONNECT_TIMEOUT", "3"))
+        with psycopg.connect(url, connect_timeout=timeout) as conn:
             conn.execute("SELECT 1")
     except psycopg.Error as exc:
         raise HTTPException(status_code=503, detail="database unreachable") from exc
