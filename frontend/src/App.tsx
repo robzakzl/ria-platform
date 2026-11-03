@@ -1,14 +1,16 @@
 import { HashRouter, NavLink, Navigate, Route, Routes } from "react-router";
 import "./App.css";
+import { AccountDetail, AccountList, NewAccountForm } from "./pages/Accounts";
 import Settings from "./pages/Settings";
 
-// The four main pages. Their content is empty for now: each shows only its title.
+// The four main pages. Accounts has its own routes below; the others show only their title for now.
 const pages = [
   { path: "/", title: "Home" },
   { path: "/accounts", title: "Accounts" },
   { path: "/positions", title: "Positions" },
   { path: "/security-master", title: "Security Master" },
 ];
+const placeholders = pages.filter((p) => p.path !== "/accounts");
 
 /**
  * App shell: a left navigation bar and the routed page. Hash routing (/#/accounts) because the deployed
@@ -22,7 +24,7 @@ export default function App() {
           <div className="brand">ria-platform</div>
           <nav className="nav" aria-label="Main">
             {pages.map((p) => (
-              <NavLink key={p.path} to={p.path} end>
+              <NavLink key={p.path} to={p.path} end={p.path === "/"}>
                 {p.title}
               </NavLink>
             ))}
@@ -33,9 +35,12 @@ export default function App() {
         </aside>
         <main className="content">
           <Routes>
-            {pages.map((p) => (
+            {placeholders.map((p) => (
               <Route key={p.path} path={p.path} element={<h1>{p.title}</h1>} />
             ))}
+            <Route path="/accounts" element={<AccountList />} />
+            <Route path="/accounts/new" element={<NewAccountForm />} />
+            <Route path="/accounts/:id" element={<AccountDetail />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

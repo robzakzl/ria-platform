@@ -55,7 +55,7 @@ cd frontend && npm ci && npm run dev
 | Command | What it runs | Time |
 |---|---|---|
 | `./dc check quick` | Back end: `ruff check`, `ruff format --check`, `pytest`. Infra: `cfn-lint infra/*.yaml` (offline). Web: `tsc` type-check, `vitest`. | ~25s cold, seconds warm |
-| `./dc check full` | Quick, plus the web production build and a smoke test: brings the stack up, checks the API reaches the database and the web app reaches the API, then stops whatever the check itself started; services you already had running stay up. | ~1 min |
+| `./dc check full` | Quick, plus the web production build and a smoke test: brings the stack up, checks the API reaches the database, the web app reaches the API and the accounts list answers, runs the back-end tests that need PostgreSQL (they create and drop their own throwaway databases), then stops whatever the check itself started; services you already had running stay up. | ~1 min |
 
 Both install missing dependencies themselves, stop at the first failure, and end with
 `GATE <tier>: PASS|FAIL`. CI runs `./dc check full`; run it before opening a PR.
@@ -65,6 +65,12 @@ Both install missing dependencies themselves, stop at the first failure, and end
 - API routes live under `/api`; the web app calls relative `/api/...` paths (Vite forwards them in
   development, nginx in the stack).
 - `/api/health` must not touch the database; `/api/health/db` is the readiness check.
+- Accounts (`backend/app/accounts.py`, web `frontend/src/pages/Accounts.tsx`): the API creates the
+  `accounts` table on its first accounts request and seeds it with the 50 fictional accounts in
+  `backend/app/sample_accounts.py` at that moment, so every database (local and prod) is seeded once.
+  There is no migration tool yet. The account endpoints have no authentication: store only sample data.
+- Back-end tests that need PostgreSQL run only when `TEST_DATABASE_URL` is set (`./dc check full` sets it);
+  under `./dc check quick` they are skipped.
 - Back-end style is whatever `ruff` enforces (`backend/pyproject.toml`); format with `ruff format`.
 - Configuration comes from environment variables with working defaults; a fresh clone runs with no setup.
 
