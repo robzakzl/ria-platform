@@ -11,7 +11,7 @@ stack below, which a person applies by hand.
 
 | Environment | Deployed from | URL |
 |---|---|---|
-| dev | every merge to `develop` | Web app: https://robzakzl.github.io/ria-platform/dev/ <br> API: printed by the command below (written here after the first deploy) |
+| dev | every merge to `develop` | Web app: https://robzakzl.github.io/ria-platform/dev/ <br> API: https://enhz3o4jxdjbwtvl6r2pmn2lku0zlyhl.lambda-url.us-east-1.on.aws |
 | prod | every merge to `main` | Web app: https://robzakzl.github.io/ria-platform/prod/ (from the first release) |
 
 The web app's URL is fixed by the repo name. The API's URL is the Lambda function URL
