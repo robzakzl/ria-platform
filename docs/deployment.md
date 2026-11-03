@@ -233,10 +233,15 @@ before it can deploy anything:
 Its outputs are `ArtifactBucket`, `DeployRoleArnDev`, `DeployRoleArnProd`, `CfnExecRoleArnDev` and
 `CfnExecRoleArnProd`.
 
-The trust policy pins each deploy role to one exact OIDC subject: `repo:robzakzl/ria-platform:ref:refs/heads/develop`
-(dev) or `...:ref:refs/heads/main` (prod), audience `sts.amazonaws.com`. A deploy job therefore must not
-set a GitHub `environment:` key, and nobody may customise the repo's OIDC subject claim template: either
-changes the subject, and the role then refuses the token.
+The trust policy pins each deploy role to one branch of this repo, audience `sts.amazonaws.com`. This
+repo's tokens carry GitHub's immutable subject, with the owner's and repo's numeric ids:
+`repo:robzakzl@7282725/ria-platform@1443168370:ref:refs/heads/develop` (dev) or `...:ref:refs/heads/main`
+(prod); the plain form `repo:robzakzl/ria-platform:ref:refs/heads/<branch>` is accepted too. GitHub
+shows which form the repo uses at `repos/robzakzl/ria-platform/actions/oidc/customization/sub`. A deploy
+job therefore must not set a GitHub `environment:` key, and nobody may customise the repo's OIDC subject
+claim template: either changes the subject, and the role then refuses the token (`Not authorized to
+perform sts:AssumeRoleWithWebIdentity`; CloudTrail's `AssumeRoleWithWebIdentity` event shows the subject
+GitHub sent).
 
 ### Why it is applied by hand, once
 

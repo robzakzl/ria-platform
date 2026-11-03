@@ -87,9 +87,15 @@ Resources:
                 Condition:
                   StringEquals:
                     token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                    token.actions.githubusercontent.com:sub: !Sub
-                      - repo:robzakzl/ria-platform:ref:${GitRef}
-                      - GitRef: !FindInMap [Branch, !Ref Env, GitRef]
+                    # GitHub sends the immutable form (owner and repo ids, set by the repo's
+                    # use_immutable_subject OIDC setting); the plain form is kept for the default.
+                    token.actions.githubusercontent.com:sub:
+                      - !Sub
+                        - repo:robzakzl@7282725/ria-platform@1443168370:ref:${GitRef}
+                        - GitRef: !FindInMap [Branch, !Ref Env, GitRef]
+                      - !Sub
+                        - repo:robzakzl/ria-platform:ref:${GitRef}
+                        - GitRef: !FindInMap [Branch, !Ref Env, GitRef]
           Policies:
             - PolicyName: deploy
               PolicyDocument:
