@@ -13,10 +13,10 @@ How to build, run and test ria-platform. This file is the single home for those 
 | `dc` | The one entrypoint: starts and stops the stack and runs the checks. |
 | `scripts/check.sh` | The checks `./dc check` runs. |
 | `infra/bootstrap.yaml` | The one-time AWS bootstrap stack (GitHub OIDC deploy roles); see [deployment.md](deployment.md). |
-| `infra/app.yaml`, `infra/lambda/run.sh` | One AWS environment (`ria-dev`, `ria-prod`) and the API's Lambda handler; see [deployment.md](deployment.md). |
-| `scripts/deploy.sh`, `scripts/build-lambda.sh` | Deploy one environment; build the API's Lambda package into `build/api`. Run by CI, not by hand. |
-| `.github/workflows/ci.yml` | CI: runs `./dc check full` on every push to `main`/`develop` and every PR, then deploys a push to `develop` to dev and to `main` to prod. |
-| `.github/workflows/rollback.yml` | Manual redeploy of an earlier commit; see [deployment.md](deployment.md). |
+| `infra/app.yaml`, `infra/lambda/run.sh` | The production AWS environment (`ria-prod`) and the API's Lambda handler; see [deployment.md](deployment.md). |
+| `scripts/deploy.sh`, `scripts/build-lambda.sh` | Deploy prod; build the API's Lambda package into `build/api`. Run by CI, not by hand. |
+| `.github/workflows/ci.yml` | CI: runs `./dc check full` on every PR and every push to `main`, and deploys every push to `main` to prod (in parallel with the check). |
+| `.github/workflows/rollback.yml` | Manual redeploy of an earlier commit of `main` to prod; see [deployment.md](deployment.md). |
 
 Generated, never committed: `backend/.venv/`, `frontend/node_modules/`, `frontend/dist/`, `build/`.
 

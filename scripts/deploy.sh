@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Deploys one environment: scripts/deploy.sh <dev|prod> <40-char commit sha>
-# Builds the API package, applies infra/app.yaml as the stack ria-<env> (API + database), builds the web
-# app against the API's URL, publishes it to GitHub Pages (branch gh-pages, folder <env>/), then
-# smoke-tests both. Exits 0 only when the smoke test passes.
-# Runs in GitHub Actions with the environment's OIDC deploy role and a GITHUB_TOKEN allowed to push
+# Deploys prod: scripts/deploy.sh prod <40-char commit sha> (prod is the only environment; the argument
+# keeps the interface older commits' rollbacks use). Builds the API package, applies infra/app.yaml as the
+# stack ria-prod (API + database), builds the web app against the API's URL, publishes it to GitHub Pages
+# (branch gh-pages, folder prod/), then smoke-tests both. Exits 0 only when the smoke test passes.
+# Runs in GitHub Actions with the prod OIDC deploy role and a GITHUB_TOKEN allowed to push
 # gh-pages (docs/deployment.md); needs AWS CLI v2, Python 3.13, Node 24, git and curl. Never prints a
 # secret: no `set -x`, and no secret is ever read here.
 set -euo pipefail
@@ -11,8 +11,8 @@ cd "$(dirname "$0")/.."
 
 env=${1:-}
 sha=${2:-}
-if [[ $env != dev && $env != prod ]] || [[ ! $sha =~ ^[0-9a-f]{40}$ ]]; then
-  echo "usage: scripts/deploy.sh <dev|prod> <40-char commit sha>" >&2
+if [[ $env != prod ]] || [[ ! $sha =~ ^[0-9a-f]{40}$ ]]; then
+  echo "usage: scripts/deploy.sh prod <40-char commit sha>" >&2
   exit 2
 fi
 export AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1 AWS_PAGER=""
@@ -82,7 +82,7 @@ step "build web app against $api"
   VITE_API_BASE_URL="$api" npm run --silent build -- --base "/$name/$env/")
 
 step "publish web app to GitHub Pages ($site/)"
-# The gh-pages branch holds one folder per environment; a deploy replaces only its own folder.
+# The web app is the folder <env>/ of the gh-pages branch; a deploy replaces only that folder.
 pages=build/pages
 git worktree remove --force "$pages" 2>/dev/null || true
 rm -rf -- build/pages
@@ -106,7 +106,7 @@ fi
   touch .nojekyll
   git add -A
   git commit --quiet -m "deploy $env $sha" || echo "web app unchanged"
-  # A dev and a prod deploy may push at once; they touch different folders, so rebase and retry.
+  # Another push to gh-pages may land first; this deploy touches only its own folder, so rebase and retry.
   for attempt in 1 2 3 4 5; do
     git push --quiet origin HEAD:refs/heads/gh-pages && break
     ((attempt < 5)) || { echo "could not push gh-pages" >&2; exit 1; }
