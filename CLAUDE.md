@@ -20,7 +20,7 @@ TypeScript web app (`frontend/`), PostgreSQL, all run locally by `compose.yaml` 
 | Topic | Read |
 |---|---|
 | Layout, run, test, conventions, landmines | [docs/development.md](docs/development.md) |
-| AWS deployment: OIDC bootstrap stack, deploy roles, GitHub role variables | [docs/deployment.md](docs/deployment.md) |
+| Deployment: dev/prod URLs, monthly cost, deploy, roll back, logs, OIDC bootstrap stack, deploy roles | [docs/deployment.md](docs/deployment.md) |
 | How this repo's agent context is shaped (single home, pointers not copies) | `/usr/lib/jaahd/docs/policies/context-architecture.md` |
 | Which agent instrumentation this stack warrants | `/usr/lib/jaahd/docs/policies/agentic-instrumentation.md` |
 | Running several worktrees of this repo side by side (ports, stack names) | `/usr/lib/jaahd/docs/policies/worktree-pool-policy.md` |
