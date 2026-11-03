@@ -181,6 +181,58 @@ Resources:
                       - ec2:DescribeSubnets
                     Resource: "*"
 
+      # Ceiling for every IAM role the ria-${Env} stack creates: the execution role may only create or
+      # change a role that carries this boundary, so an app template cannot mint an admin role.
+      RoleBoundary${Env}:
+        Type: AWS::IAM::ManagedPolicy
+        Properties:
+          ManagedPolicyName: !Sub ria-${Env}-boundary
+          Description: !Sub Permissions boundary for roles created by the ria-${Env} stack
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: FunctionLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ria-${Env}-*
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ria-${Env}-*:*
+              - Sid: VpcNetworking
+                Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSubnets
+                  - ec2:DeleteNetworkInterface
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:UnassignPrivateIpAddresses
+                Resource: "*"
+              - Sid: OwnSecrets
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ria-${Env}/*
+              - Sid: OwnBuckets
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub arn:aws:s3:::ria-${Env}-*
+                  - !Sub arn:aws:s3:::ria-${Env}-*/*
+              - Sid: Tracing
+                Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+
       # Assumed by CloudFormation only; creates and changes the ria-${Env} stack's resources.
       CfnExecRole${Env}:
         Type: AWS::IAM::Role
@@ -370,19 +422,26 @@ Resources:
                       - cloudfront:DeleteOriginRequestPolicy
                       - cloudfront:GetResponseHeadersPolicy
                     Resource: "*"
-                  - Sid: FunctionRoles
+                  - Sid: FunctionRolesWithinBoundary
                     Effect: Allow
                     Action:
                       - iam:CreateRole
+                      - iam:PutRolePolicy
+                      - iam:AttachRolePolicy
+                    Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/ria-${Env}-*
+                    Condition:
+                      StringEquals:
+                        iam:PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/ria-${Env}-boundary
+                  - Sid: FunctionRoles
+                    Effect: Allow
+                    Action:
                       - iam:DeleteRole
                       - iam:GetRole
                       - iam:UpdateRole
                       - iam:UpdateAssumeRolePolicy
-                      - iam:PutRolePolicy
                       - iam:GetRolePolicy
                       - iam:DeleteRolePolicy
                       - iam:ListRolePolicies
-                      - iam:AttachRolePolicy
                       - iam:DetachRolePolicy
                       - iam:ListAttachedRolePolicies
                       - iam:TagRole
