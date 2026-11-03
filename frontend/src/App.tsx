@@ -1,33 +1,46 @@
-import { useEffect, useState } from "react";
+import { HashRouter, NavLink, Navigate, Route, Routes } from "react-router";
+import "./App.css";
+import Settings from "./pages/Settings";
 
-type Status = "checking" | "ok" | "down";
+// The four main pages. Their content is empty for now: each shows only its title.
+const pages = [
+  { path: "/", title: "Home" },
+  { path: "/accounts", title: "Accounts" },
+  { path: "/positions", title: "Positions" },
+  { path: "/security-master", title: "Security Master" },
+];
 
-// Where the API lives. Empty (same origin, the default) locally; the deployed build, served by GitHub
-// Pages, sets VITE_API_BASE_URL to the API's own HTTPS URL at build time (scripts/deploy.sh).
-const apiBase = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-
-/** Starter page: shows whether the API and its database answer. */
+/**
+ * App shell: a left navigation bar and the routed page. Hash routing (/#/accounts) because the deployed
+ * build is static files on GitHub Pages, which cannot serve a deep link like /accounts on refresh.
+ */
 export default function App() {
-  const [api, setApi] = useState<Status>("checking");
-  const [db, setDb] = useState<Status>("checking");
-
-  useEffect(() => {
-    const probe = (path: string, set: (s: Status) => void) =>
-      fetch(apiBase + path)
-        .then((r) => set(r.ok ? "ok" : "down"))
-        .catch(() => set("down"));
-    probe("/api/health", setApi);
-    probe("/api/health/db", setDb);
-  }, []);
-
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: "2rem", maxWidth: 640 }}>
-      <h1>ria-platform</h1>
-      <p>Investment adviser platform — starter app.</p>
-      <ul>
-        <li>API: {api}</li>
-        <li>Database: {db}</li>
-      </ul>
-    </main>
+    <HashRouter>
+      <div className="layout">
+        <aside className="sidebar">
+          <div className="brand">ria-platform</div>
+          <nav className="nav" aria-label="Main">
+            {pages.map((p) => (
+              <NavLink key={p.path} to={p.path} end>
+                {p.title}
+              </NavLink>
+            ))}
+          </nav>
+          <nav className="nav nav-secondary" aria-label="Secondary">
+            <NavLink to="/settings">Settings</NavLink>
+          </nav>
+        </aside>
+        <main className="content">
+          <Routes>
+            {pages.map((p) => (
+              <Route key={p.path} path={p.path} element={<h1>{p.title}</h1>} />
+            ))}
+            <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </HashRouter>
   );
 }

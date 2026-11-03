@@ -1,0 +1,84 @@
+body {
+  margin: 0;
+}
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+  font-family: system-ui, sans-serif;
+}
+
+.sidebar {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 1rem 0.75rem;
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 1.1rem;
+  padding: 0.25rem 0.75rem 1rem;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.nav-secondary {
+  margin-top: auto;
+}
+
+.nav a {
+  color: #d1d5db;
+  text-decoration: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.nav a:hover {
+  background: #374151;
+  color: #fff;
+}
+
+.nav a.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 2rem;
+}
+
+.content h1 {
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  .layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    flex: none;
+    padding: 0.75rem 16px;
+  }
+  .brand {
+    padding: 0 0 0.5rem;
+  }
+  .nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .nav-secondary {
+    margin-top: 0.25rem;
+  }
+  .content {
+    padding: 1.25rem 16px;
+  }
+}
