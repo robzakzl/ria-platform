@@ -360,7 +360,12 @@ body {
   }
   /* Room on the right for the theme toggle, which sits on this row. */
   .brand {
-    padding: 0 3rem 0.5rem 0;
+    padding: 0 3.5rem 0.5rem 0;
+  }
+  /* A full 44px touch target on phones. */
+  .theme-toggle {
+    width: 2.75rem;
+    height: 2.75rem;
   }
   .logo {
     height: 34px;

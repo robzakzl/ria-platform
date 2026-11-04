@@ -13,7 +13,7 @@ const setDevice = (dark: boolean) => {
 
 const theme = () => document.documentElement.dataset.theme;
 const toggle = () => screen.getByRole("button", { name: /^Switch to (light|dark) theme$/ });
-const icon = () => (toggle().querySelector("circle") ? "sun" : "moon");
+const icon = () => toggle().querySelector("svg")?.dataset.icon;
 
 beforeEach(() => {
   window.location.hash = "";
