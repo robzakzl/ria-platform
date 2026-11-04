@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The repo's checks. Run through ./dc: `./dc check quick` or `./dc check full`.
 #   quick: back-end lint, format and unit tests; CloudFormation lint (offline); web type-check and unit tests.
-#   full:  quick, plus the web production build and a smoke test of the whole stack in containers.
+#   full:  quick, plus the web production build, a smoke test of the whole stack in containers, and the
+#          back-end tests that need PostgreSQL (TEST_DATABASE_URL, the stack's database).
 # Exits non-zero on the first failure; the last line is `GATE <tier>: PASS|FAIL`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -70,6 +71,12 @@ smoke() {
   page=$(curl -fsS "http://127.0.0.1:${WEB_PORT:-5173}/")
   [[ $page == *'<div id="root">'* ]] || { echo "web page is missing the app root" >&2; exit 1; }
   curl -fsS "http://127.0.0.1:${WEB_PORT:-5173}/api/health"; echo
+  step "accounts are stored and seeded"
+  curl -fsS "http://127.0.0.1:${WEB_PORT:-5173}/api/accounts" |
+    python3 -c 'import json, sys; n = len(json.load(sys.stdin)); print(n, "accounts"); sys.exit(n < 50)'
+  step "back-end tests against PostgreSQL"
+  (cd backend && TEST_DATABASE_URL="postgresql://${POSTGRES_USER:-ria}:${POSTGRES_PASSWORD:-ria}@127.0.0.1:${DB_PORT:-5432}/${POSTGRES_DB:-ria}" \
+    .venv/bin/pytest -q tests/test_accounts.py)
 }
 
 quick

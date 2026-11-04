@@ -160,7 +160,8 @@ Resources:
         Cors:
           AllowOrigins:
             - !FindInMap [Web, Pages, Origin]
-          AllowMethods: [GET]
+          AllowMethods: [GET, POST]
+          AllowHeaders: [content-type]
           MaxAge: 300
 
   # A public function URL needs both grants; SAM adds lambda:InvokeFunctionUrl, this adds the other.

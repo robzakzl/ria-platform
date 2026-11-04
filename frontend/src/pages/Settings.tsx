@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
+import { apiBase } from "../api";
 
 type Status = "checking" | "ok" | "down";
-
-// Where the API lives. Empty (same origin, the default) locally; the deployed build, served by GitHub
-// Pages, sets VITE_API_BASE_URL to the API's own HTTPS URL at build time (scripts/deploy.sh).
-const apiBase = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 /** Settings page: shows whether the API and its database answer. */
 export default function Settings() {

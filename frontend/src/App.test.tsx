@@ -29,7 +29,7 @@ test("left navigation lists the pages and opens Home by default", () => {
   expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Home");
 });
 
-test.each(["Accounts", "Positions", "Security Master"])(
+test.each(["Positions", "Security Master"])(
   "clicking %s shows its empty page",
   (title) => {
     render(<App />);
