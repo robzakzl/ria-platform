@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 /** The state of one API load: loading, failed, or done with its data. */
-export type Load<T> = { state: "loading" } | { state: "error"; message: string } | { state: "ok"; data: T };
+export type Load<T> =
+  { state: "loading" } | { state: "error"; message: string } | { state: "ok"; data: T };
 
 export function useLoad<T>(load: () => Promise<T>, key: string): Load<T> {
   const [result, setResult] = useState<Load<T>>({ state: "loading" });

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from decimal import Decimal
 
@@ -51,6 +52,7 @@ def no_db():
         "account_id=0",
         "page=0",
         "page_size=101",
+        "date_from=2026-07-01&date_to=2026-06-30",
     ],
 )
 def test_list_rejects_invalid_filters(no_db, query) -> None:
@@ -116,3 +118,9 @@ def test_account_created_after_seeding_has_no_commissions(database) -> None:
     created = client.post("/api/accounts", json=NEW_ACCOUNT).json()
     assert get(account_id=created["id"])["total_count"] == 0
     assert get()["total_count"] == 50 * 6 * 21
+
+
+def test_concurrent_first_requests_seed_once(database) -> None:
+    with ThreadPoolExecutor(8) as pool:
+        counts = list(pool.map(lambda _: get()["total_count"], range(8)))
+    assert counts == [50 * 6 * 21] * 8

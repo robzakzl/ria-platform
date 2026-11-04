@@ -4,12 +4,25 @@ import { useLoad } from "../useLoad";
 
 const PAGE_SIZE = 25;
 
-// Filter fields, kept in the page URL (#/commissions?type=Monthly&page=2) so a filtered view can be
-// reloaded or shared. Keys are the API's query parameters.
-const FILTERS = ["date_from", "date_to", "commission_type", "account_id"] as const;
+// Filter fields, kept in the page URL (#/commissions?commission_type=Monthly&page=2) so a filtered
+// view can be reloaded or shared. Keys are the API's query parameters. A value the API would reject
+// (a hand-edited URL) is ignored rather than shown as an error.
+const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+const VALID = {
+  date_from: isDate,
+  date_to: isDate,
+  commission_type: (v: string) => (commissionTypes as string[]).includes(v),
+  account_id: (v: string) => /^[1-9]\d{0,17}$/.test(v),
+};
+const FILTERS = Object.keys(VALID) as (keyof typeof VALID)[];
 type Filter = (typeof FILTERS)[number];
+const MAX_PAGE = 1_000_000;
 
-const longDate = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+const longDate = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
 /** "2026-10-03" -> "Oct 3, 2026", read as a calendar date (no time-zone shift). */
 const formatDate = (iso: string) => {
   const [y, m, d] = iso.split("-").map(Number);
@@ -19,8 +32,11 @@ const formatDate = (iso: string) => {
 /** Commissions page: every commission and fee charged to accounts, filtered and paged. */
 export default function Commissions() {
   const [params, setParams] = useSearchParams();
-  const value = (k: Filter) => params.get(k) ?? "";
-  const page = Math.max(1, Number(params.get("page")) || 1);
+  const value = (k: Filter) => {
+    const v = params.get(k) ?? "";
+    return VALID[k](v) ? v : "";
+  };
+  const page = Math.min(MAX_PAGE, Math.max(1, Math.floor(Number(params.get("page"))) || 1));
   const query = {
     ...Object.fromEntries(FILTERS.map((k) => [k, value(k)])),
     page: String(page),
@@ -46,15 +62,34 @@ export default function Commissions() {
     <>
       <div className="page-head">
         <h1>Commissions</h1>
+        {filtered && (
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => setParams(new URLSearchParams())}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
       <form className="filters" aria-label="Filters" onSubmit={(e) => e.preventDefault()}>
         <label className="field">
           <span>From</span>
-          <input type="date" value={value("date_from")} onChange={setFilter("date_from")} />
+          <input
+            type="date"
+            value={value("date_from")}
+            max={value("date_to") || undefined}
+            onChange={setFilter("date_from")}
+          />
         </label>
         <label className="field">
           <span>To</span>
-          <input type="date" value={value("date_to")} onChange={setFilter("date_to")} />
+          <input
+            type="date"
+            value={value("date_to")}
+            min={value("date_from") || undefined}
+            onChange={setFilter("date_to")}
+          />
         </label>
         <label className="field">
           <span>Type</span>
@@ -69,6 +104,12 @@ export default function Commissions() {
           <span>Account</span>
           <select value={value("account_id")} onChange={setFilter("account_id")}>
             <option value="">All accounts</option>
+            {/* Keep a selected account visible even if it is not (or not yet) in the list. */}
+            {value("account_id") &&
+              !(
+                accounts.state === "ok" &&
+                accounts.data.some((a) => String(a.id) === value("account_id"))
+              ) && <option value={value("account_id")}>Account {value("account_id")}</option>}
             {accounts.state === "ok" &&
               accounts.data.map((a) => (
                 <option key={a.id} value={String(a.id)}>
@@ -77,15 +118,6 @@ export default function Commissions() {
               ))}
           </select>
         </label>
-        {filtered && (
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={() => setParams(new URLSearchParams())}
-          >
-            Clear filters
-          </button>
-        )}
       </form>
       {result.state === "loading" && <p className="muted">Loading commissions…</p>}
       {result.state === "error" && (
@@ -125,10 +157,11 @@ export default function Commissions() {
                 <tbody>
                   {result.data.items.map((c) => (
                     <tr key={c.id}>
-                      <td>{formatDate(c.charged_on)}</td>
+                      <td className="nowrap">{formatDate(c.charged_on)}</td>
                       <td className="wide-only">{c.account_id}</td>
                       <td>
                         <Link to={`/accounts/${c.account_id}`}>{c.account_name}</Link>
+                        <span className="narrow-only muted"> #{c.account_id}</span>
                       </td>
                       <td>{c.commission_type}</td>
                       <td className="num">{formatUsd(c.amount)}</td>
@@ -140,7 +173,7 @@ export default function Commissions() {
           )}
           <Pager
             page={page}
-            pages={Math.max(1, Math.ceil(result.data.total_count / PAGE_SIZE))}
+            pages={Math.min(MAX_PAGE, Math.max(1, Math.ceil(result.data.total_count / PAGE_SIZE)))}
             go={(p) => update({ page: p === 1 ? "" : String(p) })}
           />
         </>
@@ -159,7 +192,12 @@ function Pager({ page, pages, go }: { page: number; pages: number; go: (page: nu
       <span>
         Page {page} of {pages}
       </span>
-      <button type="button" className="button" disabled={page >= pages} onClick={() => go(page + 1)}>
+      <button
+        type="button"
+        className="button"
+        disabled={page >= pages}
+        onClick={() => go(page + 1)}
+      >
         Next →
       </button>
     </nav>

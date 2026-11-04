@@ -122,6 +122,10 @@ body {
   flex-basis: 16rem;
 }
 
+.narrow-only {
+  display: none;
+}
+
 .summary {
   margin: 0 0 0.75rem;
 }
@@ -273,12 +277,16 @@ body {
   .table td {
     padding: 0.5rem 0.4rem;
   }
-  .table td.num {
+  .table td.num,
+  .table td.nowrap {
     white-space: nowrap;
   }
   /* City is on the detail page; dropping it keeps the balance in view on a phone. */
   .table .wide-only {
     display: none;
+  }
+  .table .narrow-only {
+    display: inline;
   }
   .filters .field {
     flex: 1 1 calc(50% - 0.375rem);

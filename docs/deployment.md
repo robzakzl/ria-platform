@@ -122,12 +122,12 @@ workflow (`.github/workflows/ci.yml`), whose two jobs start together:
 `scripts/deploy.sh` first checks the AWS identity (the job fails there if GitHub could not assume the
 deploy role), builds the API package, applies the `ria-<env>` stack, builds the web app pointed at the
 API's URL, and pushes it with a `version.json` to the `gh-pages` branch. Finally it smoke-tests both:
-the API's `/api/health/db` must answer `{"status":"ok","database":"ok"}` with the Pages origin allowed by
-CORS, `/api/accounts` must list at least 50 accounts (the first such request creates and seeds the
-table), `/api/commissions` must hold at least 300 Monthly fees (likewise seeded on its first request), and the web app's `version.json` must name the commit just deployed and its page must load. The
-job is green only if all of that passed (GitHub Pages takes a minute or two to publish a push; the smoke
-test waits up to 5 minutes). Deploys of one environment queue; they
-never overlap.
+the API's `/api/health/db` must answer `{"status":"ok","database":"ok"}` with the Pages origin allowed
+by CORS, `/api/accounts` must list at least 50 accounts (the first such request creates and seeds the
+table), `/api/commissions` must hold at least 300 Monthly fees (likewise seeded on its first request),
+and the web app's `version.json` must name the commit just deployed and its page must load. The job is
+green only if all of that passed (GitHub Pages takes a minute or two to publish a push; the smoke test
+waits up to 5 minutes). Deploys of one environment queue; they never overlap.
 
 **See what is deployed.** `<web url>` and `<api url>` are the environment's URLs from the table above:
 

@@ -11,7 +11,7 @@ from enum import StrEnum
 from typing import Annotated
 
 import psycopg
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app import accounts
@@ -105,6 +105,8 @@ def list_commissions(
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> CommissionPage:
     """Commissions matching every given filter (dates inclusive), newest first, one page."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="date_from is after date_to")
     where, params = [], []
     for clause, value in (
         ("c.charged_on >= %s", date_from),

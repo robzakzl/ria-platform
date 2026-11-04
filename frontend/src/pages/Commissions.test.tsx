@@ -42,8 +42,10 @@ afterEach(() => {
 });
 
 const lastQuery = () =>
-  new URL(fetchMock.mock.calls.filter(([p]) => p.startsWith("/api/commissions")).at(-1)![0], "http://x")
-    .searchParams;
+  new URL(
+    fetchMock.mock.calls.filter(([p]) => p.startsWith("/api/commissions")).at(-1)![0],
+    "http://x",
+  ).searchParams;
 
 test("the Commissions page lists charges with their total", async () => {
   render(<App />);
@@ -52,11 +54,15 @@ test("the Commissions page lists charges with their total", async () => {
   expect([...row.querySelectorAll("td")].map((td) => td.textContent)).toEqual([
     "Oct 3, 2026",
     "3",
-    "Ada Lovelace",
+    "Ada Lovelace #3",
     "Per Order",
     "$12.50",
   ]);
   expect(document.querySelector(".summary")!.textContent).toBe("60 charges, totalling $1,234.50");
+  expect(screen.getByRole("link", { name: "Ada Lovelace" }).getAttribute("href")).toBe(
+    "#/accounts/3",
+  );
+  expect(screen.getByRole("button", { name: "← Previous" }).hasAttribute("disabled")).toBe(true);
   expect(lastQuery().get("page")).toBe("1");
   expect(lastQuery().get("page_size")).toBe("25");
 });
@@ -105,4 +111,23 @@ test("Previous is disabled on the first page and Next on the last", async () => 
   await screen.findByText("Page 3 of 3");
   expect(screen.getByRole("button", { name: "Next →" }).hasAttribute("disabled")).toBe(true);
   expect(screen.getByRole("button", { name: "← Previous" }).hasAttribute("disabled")).toBe(false);
+});
+
+test("invalid values in the page URL are ignored, not sent", async () => {
+  window.location.hash = "#/commissions?page=2.5&date_from=junk&commission_type=Flat&account_id=x";
+  render(<App />);
+  await screen.findByText("Page 2 of 3");
+  expect([...lastQuery().entries()]).toEqual([
+    ["page", "2"],
+    ["page_size", "25"],
+  ]);
+});
+
+test("an account missing from the list stays shown as the selected filter", async () => {
+  window.location.hash = "#/commissions?account_id=999";
+  render(<App />);
+  await screen.findByRole("option", { name: "Lovelace, Ada (3)" });
+  const select = screen.getByLabelText("Account") as HTMLSelectElement;
+  expect(select.selectedOptions[0].textContent).toBe("Account 999");
+  expect(lastQuery().get("account_id")).toBe("999");
 });
