@@ -17,9 +17,9 @@ const pages = [
 const placeholders = pages.filter((p) => p.path !== "/accounts" && p.path !== "/commissions");
 
 /**
- * App shell: a left navigation bar, a top bar holding the theme switch, and the routed page. Hash routing
- * (/#/accounts) because the deployed build is static files on GitHub Pages, which cannot serve a deep link
- * like /accounts on refresh.
+ * App shell: a left navigation bar, a top bar holding the light/dark theme toggle, and the routed page.
+ * Hash routing (/#/accounts) because the deployed build is static files on GitHub Pages, which cannot serve a
+ * deep link like /accounts on refresh.
  */
 export default function App() {
   return (
