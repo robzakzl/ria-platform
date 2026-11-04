@@ -1,6 +1,6 @@
 # Development
 
-How to build, run and test ria-platform. This file is the single home for those commands; the README,
+How to build, run and test Asterly. This file is the single home for those commands; the README,
 `CLAUDE.md` and `AGENTS.md` point here.
 
 ## Layout

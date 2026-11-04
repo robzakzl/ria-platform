@@ -1,4 +1,4 @@
-# ria-platform — agent guide
+# Asterly — agent guide
 
 An investment-adviser (RIA) platform at the starter-app stage: FastAPI API (`backend/`), React +
 TypeScript web app (`frontend/`), PostgreSQL, all run locally by `compose.yaml` through `./dc`.

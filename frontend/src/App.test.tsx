@@ -17,6 +17,7 @@ afterEach(() => {
 
 test("left navigation lists the pages and opens Home by default", () => {
   render(<App />);
+  expect(screen.getByText("Asterly").className).toBe("brand");
   const main = screen.getByRole("navigation", { name: "Main" });
   const links = main.querySelectorAll("a");
   expect([...links].map((a) => a.textContent)).toEqual([

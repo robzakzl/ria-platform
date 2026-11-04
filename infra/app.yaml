@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >-
-  ria-prod - the ria-platform production environment (prod is the only one), applied by GitHub Actions through
+  ria-prod - the Asterly production environment (prod is the only one), applied by GitHub Actions through
   scripts/deploy.sh (docs/deployment.md): the API on Lambda behind its HTTPS function URL and an Aurora
   Serverless v2 PostgreSQL database. The web app is served by GitHub Pages, not by this stack.
 
