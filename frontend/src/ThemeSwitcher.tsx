@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 export type ThemeChoice = "light" | "dark" | "system";
 
@@ -32,18 +32,18 @@ export default function ThemeSwitcher() {
   }, []);
 
   const theme = choice === "system" ? (dark ? "dark" : "light") : choice;
-  useEffect(() => {
+  // Layout effect: the theme is in place before the first paint, so a dark device sees no light flash.
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
   return (
-    <div className="theme-switch" role="radiogroup" aria-label="Theme">
+    <div className="theme-switch" role="group" aria-label="Theme">
       {choices.map((c) => (
         <button
           key={c.value}
           type="button"
-          role="radio"
-          aria-checked={choice === c.value}
+          aria-pressed={choice === c.value}
           onClick={() => setChoice(c.value)}
         >
           {c.label}

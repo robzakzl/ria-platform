@@ -12,7 +12,7 @@ const setDevice = (dark: boolean) => {
 };
 
 const theme = () => document.documentElement.dataset.theme;
-const option = (name: string) => screen.getByRole("radio", { name });
+const option = (name: string) => screen.getByRole("button", { name });
 
 beforeEach(() => {
   window.location.hash = "";
@@ -36,14 +36,14 @@ afterEach(() => {
 
 test("the top bar offers Light, Dark and System, starting on System", () => {
   render(<App />);
-  const group = screen.getByRole("radiogroup", { name: "Theme" });
+  const group = screen.getByRole("group", { name: "Theme" });
   expect([...group.querySelectorAll("button")].map((b) => b.textContent)).toEqual([
     "Light",
     "Dark",
     "System",
   ]);
   expect(group.closest("header")).toBeTruthy();
-  expect(option("System").getAttribute("aria-checked")).toBe("true");
+  expect(option("System").getAttribute("aria-pressed")).toBe("true");
 });
 
 test("System follows the device theme, including when it changes", () => {
@@ -59,16 +59,19 @@ test("picking Light or Dark overrides the device until the page reloads", () => 
   render(<App />);
   fireEvent.click(option("Light"));
   expect(theme()).toBe("light");
-  expect(option("Light").getAttribute("aria-checked")).toBe("true");
+  expect(option("Light").getAttribute("aria-pressed")).toBe("true");
   setDevice(true);
   expect(theme()).toBe("light");
   fireEvent.click(option("Dark"));
   expect(theme()).toBe("dark");
+  setDevice(false);
+  fireEvent.click(option("System"));
+  expect(theme()).toBe("light");
 
   // A fresh load starts from the device theme again; nothing is remembered.
   cleanup();
   setDevice(false);
   render(<App />);
-  expect(option("System").getAttribute("aria-checked")).toBe("true");
+  expect(option("System").getAttribute("aria-pressed")).toBe("true");
   expect(theme()).toBe("light");
 });

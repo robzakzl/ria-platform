@@ -29,7 +29,7 @@
   --border: #374151;
   --input-border: #4b5563;
   --surface: #1f2937;
-  --hover: #1f2937;
+  --hover: #273244;
   --heading: #d1d5db;
   --error: #f87171;
   --accent-disabled: #1e3a8a;
@@ -45,6 +45,11 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+}
+
+/* Light mode keeps the browser's link colours; the dark-mode defaults are too dim and purple. */
+:root[data-theme="dark"] .content a:not(.button) {
+  color: #93c5fd;
 }
 
 .layout {
@@ -136,7 +141,12 @@ body {
   background: var(--hover);
 }
 
-.theme-switch button[aria-checked="true"] {
+.theme-switch button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.theme-switch button[aria-pressed="true"] {
   background: var(--accent);
   color: #fff;
 }
@@ -350,8 +360,13 @@ body {
     flex: none;
     padding: 0.75rem 16px;
   }
+  /* Room on the right for the theme switch, which sits on this row. */
   .brand {
-    padding: 0 0 0.5rem;
+    padding: 0 10rem 0.5rem 0;
+  }
+  .theme-switch button {
+    font-size: 0.8125rem;
+    padding: 0.3rem 0.55rem;
   }
   .nav {
     flex-direction: row;
