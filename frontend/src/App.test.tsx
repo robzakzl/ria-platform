@@ -17,7 +17,7 @@ afterEach(() => {
 
 test("left navigation lists the pages and opens Home by default", () => {
   render(<App />);
-  expect(screen.getByText("Asterly").className).toBe("brand");
+  expect(screen.getByRole("img", { name: "Asterly" }).closest(".brand")).toBeTruthy();
   const main = screen.getByRole("navigation", { name: "Main" });
   const links = main.querySelectorAll("a");
   expect([...links].map((a) => a.textContent)).toEqual([
@@ -58,4 +58,9 @@ test("an unknown page redirects to Home", () => {
   window.location.hash = "#/nope";
   render(<App />);
   expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Home");
+});
+
+test("the menu shows the Asterly crest logo", () => {
+  render(<App />);
+  expect(screen.getByRole("img", { name: "Asterly" }).textContent).toContain("ASTERLY");
 });

@@ -19,6 +19,9 @@
   --nav-link: #1f2937;
   --nav-hover-bg: #c7dbfe;
   --nav-hover-text: #111827;
+  --logo-ink: #14254a;
+  --logo-gold: #b08d4a;
+  --logo-card: #fff;
 }
 
 :root[data-theme="dark"] {
@@ -39,6 +42,8 @@
   --nav-link: #d1d5db;
   --nav-hover-bg: #374151;
   --nav-hover-text: #fff;
+  --logo-ink: #f4efe3;
+  --logo-card: #14254a;
 }
 
 body {
@@ -69,9 +74,13 @@ body {
 }
 
 .brand {
-  font-weight: 600;
-  font-size: 1.1rem;
   padding: 0.25rem 0.75rem 1rem;
+}
+
+.logo {
+  display: block;
+  height: 48px;
+  width: auto;
 }
 
 .nav {
@@ -363,6 +372,9 @@ body {
   /* Room on the right for the theme switch, which sits on this row. */
   .brand {
     padding: 0 10rem 0.5rem 0;
+  }
+  .logo {
+    height: 34px;
   }
   .theme-switch button {
     font-size: 0.8125rem;
