@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import {
   type Account,
@@ -9,24 +9,7 @@ import {
   getAccount,
   listAccounts,
 } from "../api";
-
-type Load<T> = { state: "loading" } | { state: "error"; message: string } | { state: "ok"; data: T };
-
-function useLoad<T>(load: () => Promise<T>, key: string): Load<T> {
-  const [result, setResult] = useState<Load<T>>({ state: "loading" });
-  // Reload only when `key` (what is being loaded) changes, not on every new `load` closure.
-  useEffect(() => {
-    let live = true;
-    setResult({ state: "loading" });
-    load()
-      .then((data) => live && setResult({ state: "ok", data }))
-      .catch((e: Error) => live && setResult({ state: "error", message: e.message }));
-    return () => {
-      live = false;
-    };
-  }, [key]);
-  return result;
-}
+import { useLoad } from "../useLoad";
 
 const fullName = (a: Account) => `${a.first_name} ${a.last_name}`;
 

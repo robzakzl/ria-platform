@@ -55,3 +55,43 @@ export const createAccount = (a: NewAccount) =>
     headers: { "content-type": "application/json" },
     body: JSON.stringify(a),
   });
+
+export type CommissionType = "Per Order" | "Percentage" | "Minimum" | "Monthly";
+export const commissionTypes: CommissionType[] = ["Per Order", "Percentage", "Minimum", "Monthly"];
+
+/** A commission or fee charged to an account (backend/app/commissions.py). amount is a decimal string. */
+export interface Commission {
+  id: number;
+  account_id: number;
+  account_name: string;
+  charged_on: string; // YYYY-MM-DD
+  commission_type: CommissionType;
+  amount: string;
+}
+
+/** One page of commissions; total_count and total_amount cover every match, not only this page. */
+export interface CommissionPage {
+  items: Commission[];
+  page: number;
+  page_size: number;
+  total_count: number;
+  total_amount: string;
+}
+
+/** Filters and page for GET /api/commissions, as its query-string parameter names. Empty means unset. */
+export interface CommissionQuery {
+  date_from?: string;
+  date_to?: string;
+  commission_type?: string;
+  account_id?: string;
+  page?: string;
+  page_size?: string;
+}
+
+export const listCommissions = (q: CommissionQuery) => {
+  const params = new URLSearchParams(
+    Object.entries(q).filter((kv): kv is [string, string] => Boolean(kv[1])),
+  );
+  const qs = params.toString();
+  return request<CommissionPage>(`/api/commissions${qs ? `?${qs}` : ""}`);
+};

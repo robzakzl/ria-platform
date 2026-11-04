@@ -129,15 +129,20 @@ while :; do
   # The first accounts request creates and seeds the table (backend/app/accounts.py): expect >= 50.
   accounts=$(curl -fsS --max-time 35 "$api/api/accounts" 2>/dev/null |
     python3 -c 'import json, sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
+  # The first commissions request seeds 6 Monthly fees per account (backend/app/commissions.py).
+  monthly=$(curl -fsS --max-time 35 "$api/api/commissions?commission_type=Monthly&page_size=1" \
+    2>/dev/null | python3 -c 'import json, sys; print(json.load(sys.stdin)["total_count"])' \
+    2>/dev/null || echo 0)
   page=$(curl -fsS --max-time 10 "$site/?smoke=$SECONDS" 2>/dev/null || true)
   page_ok=no
   [[ $page == *'<div id="root">'* && $page == *"/$name/$env/assets/"* ]] && page_ok=yes
   if [[ $db == "$want_db" && $cors == "$pages_origin" && $got_sha == "$sha" && $page_ok == yes ]] &&
-    ((accounts >= 50)); then
+    ((accounts >= 50 && monthly >= 300)); then
     break
   fi
   if ((SECONDS >= deadline)); then
     echo "smoke test failed: $api/api/health/db='$db' CORS allow-origin='$cors' accounts=$accounts" \
+      "monthly commissions=$monthly" \
       "$site/version.json sha='$got_sha' web page ok=$page_ok" >&2
     exit 1
   fi
@@ -145,6 +150,7 @@ while :; do
 done
 echo "$api/api/health/db -> $db (CORS allows $cors)"
 echo "$api/api/accounts -> $accounts accounts"
+echo "$api/api/commissions -> $monthly Monthly fees"
 echo "$site/version.json -> $got_sha"
 echo "deployed $sha to $env: $site/"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then

@@ -74,9 +74,12 @@ smoke() {
   step "accounts are stored and seeded"
   curl -fsS "http://127.0.0.1:${WEB_PORT:-5173}/api/accounts" |
     python3 -c 'import json, sys; n = len(json.load(sys.stdin)); print(n, "accounts"); sys.exit(n < 50)'
+  step "commissions are stored and seeded"
+  curl -fsS "http://127.0.0.1:${WEB_PORT:-5173}/api/commissions?commission_type=Monthly&page_size=1" |
+    python3 -c 'import json, sys; n = json.load(sys.stdin)["total_count"]; print(n, "Monthly fees"); sys.exit(n < 300)'
   step "back-end tests against PostgreSQL"
   (cd backend && TEST_DATABASE_URL="postgresql://${POSTGRES_USER:-ria}:${POSTGRES_PASSWORD:-ria}@127.0.0.1:${DB_PORT:-5432}/${POSTGRES_DB:-ria}" \
-    .venv/bin/pytest -q tests/test_accounts.py)
+    .venv/bin/pytest -q tests/test_accounts.py tests/test_commissions.py)
 }
 
 quick

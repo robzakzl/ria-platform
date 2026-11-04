@@ -55,7 +55,7 @@ cd frontend && npm ci && npm run dev
 | Command | What it runs | Time |
 |---|---|---|
 | `./dc check quick` | Back end: `ruff check`, `ruff format --check`, `pytest`. Infra: `cfn-lint infra/*.yaml` (offline). Web: `tsc` type-check, `vitest`. | ~25s cold, seconds warm |
-| `./dc check full` | Quick, plus the web production build and a smoke test: brings the stack up, checks the API reaches the database, the web app reaches the API and the accounts list answers, runs the back-end tests that need PostgreSQL (they create and drop their own throwaway databases), then stops whatever the check itself started; services you already had running stay up. | ~1 min |
+| `./dc check full` | Quick, plus the web production build and a smoke test: brings the stack up, checks the API reaches the database, the web app reaches the API and the accounts and commissions lists answer, runs the back-end tests that need PostgreSQL (they create and drop their own throwaway databases), then stops whatever the check itself started; services you already had running stay up. | ~1 min |
 
 Both install missing dependencies themselves, stop at the first failure, and end with
 `GATE <tier>: PASS|FAIL`. CI runs `./dc check full`; run it before opening a PR.
@@ -69,6 +69,12 @@ Both install missing dependencies themselves, stop at the first failure, and end
   `accounts` table on its first accounts request and seeds it with the 50 fictional accounts in
   `backend/app/sample_accounts.py` at that moment, so every database (local and prod) is seeded once.
   There is no migration tool yet. The account endpoints have no authentication: store only sample data.
+- Commissions (`backend/app/commissions.py`, web `frontend/src/pages/Commissions.tsx`): fees charged to
+  accounts, typed Per Order, Percentage, Minimum or Monthly. `GET /api/commissions` filters by date range,
+  type and account and returns one page plus the count and total of every match. The table is created on
+  its first request and seeded once from `backend/app/sample_commissions.py` for every account that exists
+  then: May–October 2026, a $10 Monthly fee and 20 Per Order fees of $10–$15 per account per month.
+  Accounts added later get no commissions. Read-only, no authentication: sample data only.
 - Back-end tests that need PostgreSQL run only when `TEST_DATABASE_URL` is set (`./dc check full` sets it);
   under `./dc check quick` they are skipped.
 - Back-end style is whatever `ruff` enforces (`backend/pyproject.toml`); format with `ruff format`.
