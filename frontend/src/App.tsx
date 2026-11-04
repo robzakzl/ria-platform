@@ -3,6 +3,7 @@ import "./App.css";
 import { AccountDetail, AccountList, NewAccountForm } from "./pages/Accounts";
 import Commissions from "./pages/Commissions";
 import Settings from "./pages/Settings";
+import Logo from "./Logo";
 import ThemeSwitcher from "./ThemeSwitcher";
 
 // The main pages. Accounts and Commissions have their own routes below; the others show only their title for now.
@@ -25,7 +26,9 @@ export default function App() {
     <HashRouter>
       <div className="layout">
         <aside className="sidebar">
-          <div className="brand">Asterly</div>
+          <div className="brand">
+            <Logo />
+          </div>
           <nav className="nav" aria-label="Main">
             {pages.map((p) => (
               <NavLink key={p.path} to={p.path} end={p.path === "/"}>
