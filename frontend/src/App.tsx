@@ -23,7 +23,7 @@ export default function App() {
     <HashRouter>
       <div className="layout">
         <aside className="sidebar">
-          <div className="brand">ria-platform</div>
+          <div className="brand">Asterly</div>
           <nav className="nav" aria-label="Main">
             {pages.map((p) => (
               <NavLink key={p.path} to={p.path} end={p.path === "/"}>

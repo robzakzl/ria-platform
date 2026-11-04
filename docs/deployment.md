@@ -1,6 +1,6 @@
 # Deployment
 
-How ria-platform is deployed: the API and database on AWS (region `us-east-1`), the web app on GitHub
+How Asterly is deployed: the API and database on AWS (region `us-east-1`), the web app on GitHub
 Pages. There is one environment, `prod`, deployed from `main`; there is no dev or staging. In this doc
 `<env>` is `prod` (resource names keep the `ria-<env>-` pattern), and `<account id>` is your 12-digit AWS
 account id (see [Apply or update it](#apply-or-update-it)). Everything in AWS is declared in

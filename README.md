@@ -1,4 +1,4 @@
-# ria-platform
+# Asterly
 
 An investment-adviser (RIA) platform: a FastAPI back end, a React + TypeScript web app, and PostgreSQL.
 It is at the starter-app stage.

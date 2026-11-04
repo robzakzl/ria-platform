@@ -1,7 +1,7 @@
 [project]
-name = "ria-api"
+name = "asterly-api"
 version = "0.1.0"
-description = "ria-platform API: the back end of an investment-adviser platform."
+description = "Asterly API: the back end of an investment-adviser platform."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

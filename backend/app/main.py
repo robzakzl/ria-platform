@@ -1,11 +1,11 @@
-"""ria-platform API entrypoint."""
+"""Asterly API entrypoint."""
 
 import psycopg
 from fastapi import FastAPI, HTTPException
 
 from app import accounts, commissions, db
 
-app = FastAPI(title="ria-platform API")
+app = FastAPI(title="Asterly API")
 app.include_router(accounts.router)
 app.include_router(commissions.router)
 
