@@ -12,7 +12,8 @@ const setDevice = (dark: boolean) => {
 };
 
 const theme = () => document.documentElement.dataset.theme;
-const option = (name: string) => screen.getByRole("button", { name });
+const toggle = () => screen.getByRole("button", { name: /^Switch to (light|dark) theme$/ });
+const icon = () => (toggle().querySelector("circle") ? "sun" : "moon");
 
 beforeEach(() => {
   window.location.hash = "";
@@ -34,44 +35,52 @@ afterEach(() => {
   delete document.documentElement.dataset.theme;
 });
 
-test("the top bar offers Light, Dark and System, starting on System", () => {
+test("the top bar holds one icon button, not a Light/Dark/System group", () => {
   render(<App />);
-  const group = screen.getByRole("group", { name: "Theme" });
-  expect([...group.querySelectorAll("button")].map((b) => b.textContent)).toEqual([
-    "Light",
-    "Dark",
-    "System",
-  ]);
-  expect(group.closest("header")).toBeTruthy();
-  expect(option("System").getAttribute("aria-pressed")).toBe("true");
+  expect(screen.queryByRole("group", { name: "Theme" })).toBeNull();
+  expect(toggle().closest("header")).toBeTruthy();
+  expect(toggle().textContent).toBe("");
+  expect(toggle().querySelector("svg")).toBeTruthy();
 });
 
-test("System follows the device theme, including when it changes", () => {
+test("light shows a sun and offers dark; dark shows a moon and offers light", () => {
+  render(<App />);
+  expect(theme()).toBe("light");
+  expect(icon()).toBe("sun");
+  expect(toggle().getAttribute("aria-label")).toBe("Switch to dark theme");
+  fireEvent.click(toggle());
+  expect(theme()).toBe("dark");
+  expect(icon()).toBe("moon");
+  expect(toggle().getAttribute("aria-label")).toBe("Switch to light theme");
+  fireEvent.click(toggle());
+  expect(theme()).toBe("light");
+  expect(icon()).toBe("sun");
+});
+
+test("before any click the theme follows the device, including when it changes", () => {
   deviceDark = true;
   render(<App />);
   expect(theme()).toBe("dark");
+  expect(icon()).toBe("moon");
   setDevice(false);
   expect(theme()).toBe("light");
+  expect(icon()).toBe("sun");
 });
 
-test("picking Light or Dark overrides the device until the page reloads", () => {
+test("a click overrides the device until the page reloads", () => {
   deviceDark = true;
   render(<App />);
-  fireEvent.click(option("Light"));
+  fireEvent.click(toggle());
   expect(theme()).toBe("light");
-  expect(option("Light").getAttribute("aria-pressed")).toBe("true");
   setDevice(true);
   expect(theme()).toBe("light");
-  fireEvent.click(option("Dark"));
-  expect(theme()).toBe("dark");
   setDevice(false);
-  fireEvent.click(option("System"));
-  expect(theme()).toBe("light");
+  fireEvent.click(toggle());
+  expect(theme()).toBe("dark");
 
   // A fresh load starts from the device theme again; nothing is remembered.
   cleanup();
-  setDevice(false);
   render(<App />);
-  expect(option("System").getAttribute("aria-pressed")).toBe("true");
   expect(theme()).toBe("light");
+  expect(icon()).toBe("sun");
 });

@@ -126,39 +126,27 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.theme-switch {
+.theme-toggle {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
   border: 1px solid var(--input-border);
   border-radius: 6px;
-  overflow: hidden;
-}
-
-.theme-switch button {
-  font: inherit;
-  font-size: 0.875rem;
-  padding: 0.3rem 0.75rem;
-  border: none;
   background: var(--bg);
   color: var(--text);
   cursor: pointer;
 }
 
-.theme-switch button + button {
-  border-left: 1px solid var(--input-border);
-}
-
-.theme-switch button:hover {
+.theme-toggle:hover {
   background: var(--hover);
 }
 
-.theme-switch button:focus-visible {
+.theme-toggle:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-.theme-switch button[aria-pressed="true"] {
-  background: var(--accent);
-  color: #fff;
+  outline-offset: 2px;
 }
 
 .content {
@@ -370,16 +358,12 @@ body {
     flex: none;
     padding: 0.75rem 16px;
   }
-  /* Room on the right for the theme switch, which sits on this row. */
+  /* Room on the right for the theme toggle, which sits on this row. */
   .brand {
-    padding: 0 10rem 0.5rem 0;
+    padding: 0 3rem 0.5rem 0;
   }
   .logo {
     height: 34px;
-  }
-  .theme-switch button {
-    font-size: 0.8125rem;
-    padding: 0.3rem 0.55rem;
   }
   .nav {
     flex-direction: row;
@@ -391,7 +375,7 @@ body {
   .layout {
     position: relative;
   }
-  /* On a phone the menu is the top band; the switch sits in its top-right corner, beside the brand. */
+  /* On a phone the menu is the top band; the toggle sits in its top-right corner, beside the brand. */
   .topbar {
     position: absolute;
     top: 0.5rem;
