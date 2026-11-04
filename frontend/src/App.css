@@ -1,5 +1,50 @@
+/* Theme tokens. ThemeSwitcher sets data-theme on <html>; light is the fallback before it runs. */
+:root {
+  color-scheme: light;
+  --bg: #fff;
+  --text: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --input-border: #d1d5db;
+  --surface: #f9fafb;
+  --hover: #f3f4f6;
+  --heading: #374151;
+  --error: #b91c1c;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-disabled: #93c5fd;
+  --sidebar-bg: #e0ecff;
+  --sidebar-border: #c7dbfe;
+  --sidebar-text: #1e3a8a;
+  --nav-link: #1f2937;
+  --nav-hover-bg: #c7dbfe;
+  --nav-hover-text: #111827;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111827;
+  --text: #f3f4f6;
+  --muted: #9ca3af;
+  --border: #374151;
+  --input-border: #4b5563;
+  --surface: #1f2937;
+  --hover: #1f2937;
+  --heading: #d1d5db;
+  --error: #f87171;
+  --accent-disabled: #1e3a8a;
+  --sidebar-bg: #1f2937;
+  --sidebar-border: #1f2937;
+  --sidebar-text: #f9fafb;
+  --nav-link: #d1d5db;
+  --nav-hover-bg: #374151;
+  --nav-hover-text: #fff;
+}
+
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .layout {
@@ -12,8 +57,9 @@ body {
   flex: 0 0 220px;
   display: flex;
   flex-direction: column;
-  background: #1f2937;
-  color: #f9fafb;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  border-right: 1px solid var(--sidebar-border);
   padding: 1rem 0.75rem;
 }
 
@@ -34,19 +80,64 @@ body {
 }
 
 .nav a {
-  color: #d1d5db;
+  color: var(--nav-link);
   text-decoration: none;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
 }
 
 .nav a:hover {
-  background: #374151;
-  color: #fff;
+  background: var(--nav-hover-bg);
+  color: var(--nav-hover-text);
 }
 
 .nav a.active {
-  background: #2563eb;
+  background: var(--accent);
+  color: #fff;
+}
+
+.main-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0.5rem 2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.theme-switch {
+  display: inline-flex;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.theme-switch button {
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.3rem 0.75rem;
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.theme-switch button + button {
+  border-left: 1px solid var(--input-border);
+}
+
+.theme-switch button:hover {
+  background: var(--hover);
+}
+
+.theme-switch button[aria-checked="true"] {
+  background: var(--accent);
   color: #fff;
 }
 
@@ -77,7 +168,7 @@ body {
 
 .button {
   display: inline-block;
-  background: #2563eb;
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -88,22 +179,22 @@ body {
 }
 
 .button:hover {
-  background: #1d4ed8;
+  background: var(--accent-hover);
 }
 
 .button:disabled {
-  background: #93c5fd;
+  background: var(--accent-disabled);
   cursor: default;
 }
 
 .button-secondary {
-  background: #fff;
-  color: #1f2937;
-  border: 1px solid #d1d5db;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--input-border);
 }
 
 .button-secondary:hover {
-  background: #f3f4f6;
+  background: var(--hover);
 }
 
 .filters {
@@ -139,11 +230,11 @@ body {
 }
 
 .muted {
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .error {
-  color: #b91c1c;
+  color: var(--error);
 }
 
 .table-wrap {
@@ -160,17 +251,17 @@ body {
 .table td {
   text-align: left;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
 }
 
 .table th {
-  color: #374151;
+  color: var(--heading);
   font-weight: 600;
-  background: #f9fafb;
+  background: var(--surface);
 }
 
 .table tbody tr:hover {
-  background: #f3f4f6;
+  background: var(--hover);
 }
 
 .table .num {
@@ -186,7 +277,7 @@ body {
 }
 
 .details dt {
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .details dd {
@@ -208,7 +299,7 @@ body {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.75rem 1rem 1rem;
   margin: 0;
@@ -234,7 +325,9 @@ body {
 .field select {
   font: inherit;
   padding: 0.45rem 0.6rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--input-border);
+  background: var(--bg);
+  color: var(--text);
   border-radius: 6px;
   min-width: 0;
 }
@@ -266,6 +359,21 @@ body {
   }
   .nav-secondary {
     margin-top: 0.25rem;
+  }
+  .layout {
+    position: relative;
+  }
+  /* On a phone the menu is the top band; the switch sits in its top-right corner, beside the brand. */
+  .topbar {
+    position: absolute;
+    top: 0.5rem;
+    right: 16px;
+    padding: 0;
+    border: none;
+  }
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--sidebar-border);
   }
   .content {
     padding: 1.25rem 16px;
