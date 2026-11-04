@@ -1,16 +1,18 @@
 import { HashRouter, NavLink, Navigate, Route, Routes } from "react-router";
 import "./App.css";
 import { AccountDetail, AccountList, NewAccountForm } from "./pages/Accounts";
+import Commissions from "./pages/Commissions";
 import Settings from "./pages/Settings";
 
-// The four main pages. Accounts has its own routes below; the others show only their title for now.
+// The main pages. Accounts and Commissions have their own routes below; the others show only their title for now.
 const pages = [
   { path: "/", title: "Home" },
   { path: "/accounts", title: "Accounts" },
+  { path: "/commissions", title: "Commissions" },
   { path: "/positions", title: "Positions" },
   { path: "/security-master", title: "Security Master" },
 ];
-const placeholders = pages.filter((p) => p.path !== "/accounts");
+const placeholders = pages.filter((p) => p.path !== "/accounts" && p.path !== "/commissions");
 
 /**
  * App shell: a left navigation bar and the routed page. Hash routing (/#/accounts) because the deployed
@@ -41,6 +43,7 @@ export default function App() {
             <Route path="/accounts" element={<AccountList />} />
             <Route path="/accounts/new" element={<NewAccountForm />} />
             <Route path="/accounts/:id" element={<AccountDetail />} />
+            <Route path="/commissions" element={<Commissions />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

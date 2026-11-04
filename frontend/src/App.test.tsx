@@ -22,6 +22,7 @@ test("left navigation lists the pages and opens Home by default", () => {
   expect([...links].map((a) => a.textContent)).toEqual([
     "Home",
     "Accounts",
+    "Commissions",
     "Positions",
     "Security Master",
   ]);

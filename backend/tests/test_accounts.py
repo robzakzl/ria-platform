@@ -1,9 +1,6 @@
-import os
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 
-import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
@@ -55,24 +52,6 @@ def test_get_rejects_out_of_range_id(no_db) -> None:
 
 
 # --- Against a real PostgreSQL: runs when TEST_DATABASE_URL is set (./dc check full sets it) ---
-
-ADMIN_URL = os.environ.get("TEST_DATABASE_URL")
-
-
-@pytest.fixture
-def database(monkeypatch):
-    """A fresh, empty database for one test, dropped afterwards."""
-    if not ADMIN_URL:
-        pytest.skip("TEST_DATABASE_URL is not set")
-    name = f"ria_test_{uuid.uuid4().hex[:12]}"
-    with psycopg.connect(ADMIN_URL, autocommit=True) as admin:
-        admin.execute(f'CREATE DATABASE "{name}"')
-    url = psycopg.conninfo.make_conninfo(ADMIN_URL, dbname=name)
-    monkeypatch.setenv("DATABASE_URL", url)
-    monkeypatch.setattr(accounts, "_schema_ready", False)
-    yield url
-    with psycopg.connect(ADMIN_URL, autocommit=True) as admin:
-        admin.execute(f'DROP DATABASE "{name}" WITH (FORCE)')
 
 
 def test_new_database_is_seeded_with_50_sample_accounts(database) -> None:

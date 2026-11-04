@@ -3,10 +3,11 @@
 import psycopg
 from fastapi import FastAPI, HTTPException
 
-from app import accounts, db
+from app import accounts, commissions, db
 
 app = FastAPI(title="ria-platform API")
 app.include_router(accounts.router)
+app.include_router(commissions.router)
 
 
 @app.get("/api/health")
