@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 9 104 104">
+  <!-- Asterly crest shield (the full logo is frontend/src/Logo.tsx). Ivory in a dark browser theme. -->
+  <style>
+    .ink { fill: #14254a; }
+    .card { fill: #fff; }
+    .gold { fill: #b08d4a; stroke: #b08d4a; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #f4efe3; }
+      .card { fill: #14254a; }
+      .gold { fill: #d4b26a; stroke: #d4b26a; }
+    }
+  </style>
+  <path class="ink" d="M60,10 L100,22 V58 C100,86 82,102 60,112 C38,102 20,86 20,58 V22 Z"/>
+  <path d="M60,10 L100,22 V58 C100,86 82,102 60,112 C38,102 20,86 20,58 V22 Z" class="gold" style="fill:none" stroke-width="3" transform="translate(60 61) scale(.86) translate(-60 -61)"/>
+  <path d="M60,28 L62.3,34.7 L69,37 L62.3,39.3 L60,46 L57.7,39.3 L51,37 L57.7,34.7 Z" class="gold" style="stroke:none"/>
+  <text class="card" x="60" y="90" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="40">A</text>
+</svg>
