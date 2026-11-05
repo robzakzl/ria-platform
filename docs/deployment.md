@@ -281,7 +281,7 @@ aws logs tail /aws/lambda/ria-prod-api --region us-east-1 --since 15m --follow
 Leave out `--follow` to print and exit; `--since 2h` or `--since 1d` looks further back.
 
 **Web logs.** GitHub Pages keeps no access logs. What the web app's deploy published is in the history
-of the `gh-pages` branch (one commit per deploy, titled `deploy prod <sha>`):
+of the `gh-pages` branch (one commit per deploy, titled `chore(pages): deploy prod <sha>`):
 
 ```bash
 git fetch origin gh-pages && git log --oneline -10 origin/gh-pages

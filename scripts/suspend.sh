@@ -38,9 +38,10 @@ aws sts get-caller-identity --query Arn --output text
 # A restart needs the deploy role's snapshot permissions (infra/bootstrap.yaml, FindDbSnapshot): without
 # them only an administrator could bring the environment back, so refuse to suspend.
 deploy_role=ria-gh-deploy-$env
-aws iam list-role-policies --role-name "$deploy_role" --query PolicyNames --output text | tr '\t' '\n' |
-  while read -r policy; do aws iam get-role-policy --role-name "$deploy_role" --policy-name "$policy"; done |
-  grep -q DescribeDBClusterSnapshots ||
+policies=$(aws iam list-role-policies --role-name "$deploy_role" --query PolicyNames --output text |
+  tr '\t' '\n' |
+  while read -r policy; do aws iam get-role-policy --role-name "$deploy_role" --policy-name "$policy"; done)
+[[ $policies == *DescribeDBClusterSnapshots* ]] ||
   { echo "$deploy_role cannot find snapshots: apply infra/bootstrap.yaml first (docs/deployment.md)" >&2; exit 1; }
 
 # First, so visitors see the notice instead of errors while the API and database go away.
