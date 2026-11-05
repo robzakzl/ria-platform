@@ -20,6 +20,16 @@ Parameters:
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Subnets in at least two availability zones that Lambda supports.
+  DbSnapshot:
+    Type: String
+    Default: ""
+    Description: >-
+      Cluster snapshot the database was restored from when the stack was created after a suspension
+      (scripts/deploy.sh sets it once); empty for a new, empty database. Never change it on a live stack:
+      a different value replaces the cluster.
+
+Conditions:
+  RestoreDb: !Not [!Equals [!Ref DbSnapshot, ""]]
 
 Mappings:
   Web:
@@ -94,6 +104,9 @@ Resources:
       EngineVersion: "17.11"
       DatabaseName: ria
       Port: 5432
+      # Set only when the stack was created after a suspension: the data comes from the snapshot, and
+      # CloudFormation then sets the new secret's password on the restored cluster.
+      SnapshotIdentifier: !If [RestoreDb, !Ref DbSnapshot, !Ref AWS::NoValue]
       MasterUsername: ria
       MasterUserPassword: !Sub "{{resolve:secretsmanager:${DbSecret}:SecretString:password}}"
       StorageEncrypted: true

@@ -2,7 +2,8 @@
 # Deploys prod: scripts/deploy.sh prod <40-char commit sha> (prod is the only environment; the argument
 # keeps the interface older commits' rollbacks use). Builds the API package, applies infra/app.yaml as the
 # stack ria-prod (API + database), builds the web app against the API's URL, publishes it to GitHub Pages
-# (branch gh-pages, folder prod/), then smoke-tests both. Exits 0 only when the smoke test passes.
+# (branch gh-pages, folder prod/), then smoke-tests both. Exits 0 only when the smoke test passes. After a
+# suspension (scripts/suspend.sh) it recreates the stack with the database restored from its snapshot.
 # Runs in GitHub Actions with the prod OIDC deploy role and a GITHUB_TOKEN allowed to push
 # gh-pages (docs/deployment.md); needs AWS CLI v2, Python 3.13, Node 24, git and curl. Never prints a
 # secret: no `set -x`, and no secret is ever read here.
@@ -61,11 +62,23 @@ if [[ $status == ROLLBACK_COMPLETE ]]; then
     "then re-run this deploy (docs/deployment.md, \"When a deploy fails\")" >&2
   exit 1
 fi
+# Creating the stack after a suspension (scripts/suspend.sh) restores the database from the newest
+# suspension snapshot. Later deploys omit DbSnapshot, so the stack keeps the value it was created with.
+restore=()
+if [[ $status == NONE ]]; then
+  snapshot=$(aws rds describe-db-cluster-snapshots --snapshot-type manual \
+    --query "reverse(sort_by(DBClusterSnapshots[?starts_with(DBClusterSnapshotIdentifier, 'ria-$env-db-suspended-') && Status=='available'], &SnapshotCreateTime))[0].DBClusterSnapshotIdentifier" \
+    --output text)
+  if [[ -n $snapshot && $snapshot != None ]]; then
+    echo "restoring the database from snapshot $snapshot"
+    restore=("DbSnapshot=$snapshot")
+  fi
+fi
 # A failed update rolls back by itself, and the previous version keeps serving.
 aws cloudformation deploy --stack-name "$stack" --template-file build/app.packaged.yaml \
   --role-arn "$exec_role" \
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND --no-fail-on-empty-changeset \
-  --parameter-overrides EnvName="$env" GitSha="$sha" VpcId="$vpc" SubnetIds="$subnets" \
+  --parameter-overrides EnvName="$env" GitSha="$sha" VpcId="$vpc" SubnetIds="$subnets" "${restore[@]}" \
   --tags GitSha="$sha"
 
 stack_output() {
@@ -82,38 +95,8 @@ step "build web app against $api"
   VITE_API_BASE_URL="$api" npm run --silent build -- --base "/$name/$env/")
 
 step "publish web app to GitHub Pages ($site/)"
-# The web app is the folder <env>/ of the gh-pages branch; a deploy replaces only that folder.
-pages=build/pages
-git worktree remove --force "$pages" 2>/dev/null || true
-rm -rf -- build/pages
-if git ls-remote --exit-code --heads origin gh-pages >/dev/null; then
-  git fetch --quiet --depth 1 origin gh-pages
-  git worktree add --quiet --detach "$pages" FETCH_HEAD
-else
-  git worktree add --quiet --detach "$pages" HEAD
-  (cd "$pages" && git checkout --quiet --orphan "pages-$env-$$" && git rm -rfq .)
-fi
-(
-  cd "$pages"
-  # The runner has no git identity; commits and the retry's rebase need one.
-  export GIT_AUTHOR_NAME="github-actions[bot]" GIT_COMMITTER_NAME="github-actions[bot]"
-  export GIT_AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
-  export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
-  rm -rf -- "./$env"
-  mkdir -p "$env"
-  cp -R ../../frontend/dist/. "$env/"
-  printf '{"sha":"%s"}\n' "$sha" >"$env/version.json"
-  touch .nojekyll
-  git add -A
-  git commit --quiet -m "deploy $env $sha" || echo "web app unchanged"
-  # Another push to gh-pages may land first; this deploy touches only its own folder, so rebase and retry.
-  for attempt in 1 2 3 4 5; do
-    git push --quiet origin HEAD:refs/heads/gh-pages && break
-    ((attempt < 5)) || { echo "could not push gh-pages" >&2; exit 1; }
-    git fetch --quiet origin gh-pages && git rebase --quiet FETCH_HEAD
-  done
-)
-git worktree remove --force "$pages"
+printf '{"sha":"%s"}\n' "$sha" >frontend/dist/version.json
+scripts/publish-pages.sh "$env" frontend/dist "chore(pages): deploy $env $sha"
 
 step "smoke test $site/ and $api"
 # GitHub Pages publishes a push within a minute or two; its CDN caches ~10 minutes, so the checks
