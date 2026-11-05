@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Restarts a suspended prod (docs/deployment.md, "Suspend and restart"): runs the deploy without a merge.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,11 +26,15 @@ jobs:
 
   # Every push (merge) to main deploys to prod at once, in parallel with `check`: the deploy does not
   # wait for the gate (an operator decision, docs/deployment.md). PRs run `check` only. No `environment:`
-  # key: it would change the OIDC subject the deploy role trusts (docs/deployment.md).
+  # key: it would change the OIDC subject the deploy role trusts (docs/deployment.md). While the repo
+  # variable PROD_SUSPENDED is "true", prod is suspended and nothing deploys.
   deploy-prod:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' && vars.PROD_SUSPENDED != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A restart (workflow_dispatch) also restores the database from its snapshot, which takes 15–25 minutes.
+    timeout-minutes: 60
     # id-token: assume the AWS deploy role (OIDC). contents: write: push the web app to gh-pages.
     permissions:
       id-token: write

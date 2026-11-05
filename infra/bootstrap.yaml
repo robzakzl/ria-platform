@@ -185,6 +185,11 @@ Resources:
                       - ec2:DescribeVpcs
                       - ec2:DescribeSubnets
                     Resource: "*"
+                  # A deploy that recreates a suspended stack restores the database from its snapshot.
+                  - Sid: FindDbSnapshot
+                    Effect: Allow
+                    Action: rds:DescribeDBClusterSnapshots
+                    Resource: "*"
 
       # Ceiling for every IAM role the ria-${Env} stack creates: the execution role may only create or
       # change a role that carries this boundary, so an app template cannot mint an admin role.
@@ -315,8 +320,11 @@ Resources:
                       - rds:AddTagsToResource
                       - rds:RemoveTagsFromResource
                       - rds:ListTagsForResource
+                      # Restarting a suspended environment restores its database snapshot (docs/deployment.md).
+                      - rds:RestoreDBClusterFromSnapshot
                     Resource:
                       - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:ria-${Env}-*
+                      - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster-snapshot:ria-${Env}-*
                       - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:ria-${Env}-*
                       - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp:ria-${Env}-*
                       # Creating a cluster or instance also authorizes against the default groups it uses.

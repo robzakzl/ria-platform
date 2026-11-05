@@ -7,6 +7,10 @@ account id (see [Apply or update it](#apply-or-update-it)). Everything in AWS is
 CloudFormation templates under `infra/`. GitHub Actions applies them, with one exception: the bootstrap
 stack below, which a person applies by hand.
 
+**Prod is suspended** to save money: the API and database are deleted, the database kept as a snapshot,
+and the web URL shows a "paused" page. Merges to `main` do not deploy while it is. The URLs and resources
+below describe prod while it runs; [Suspend and restart](#suspend-and-restart) brings it back.
+
 ## Environment and stacks
 
 | Environment | Deployed from | URL |
@@ -35,7 +39,7 @@ CloudFront resources`). Moving the web app to CloudFront is a follow-up once tha
 | Stack | Template | Who applies it |
 |---|---|---|
 | `ria-bootstrap` | `infra/bootstrap.yaml` | A person, by hand, once ([One-time bootstrap](#one-time-bootstrap-oidc-deploy-role)). |
-| `ria-prod` | `infra/app.yaml` with `EnvName=prod` | The `deploy-prod` job of `.github/workflows/ci.yml`. |
+| `ria-prod` | `infra/app.yaml` with `EnvName=prod` | The `deploy-prod` job of `.github/workflows/ci.yml`; deleted while prod is suspended. |
 
 Prod's database has deletion protection, and is snapshotted rather than deleted if the stack ever removes
 or replaces it.
@@ -102,7 +106,11 @@ so there is no public IPv4 charge.
 | `RoleBoundaryprod` (`AWS::IAM::ManagedPolicy`) | $0 | n/a, no charge | — |
 | **Shared total** | **under $0.01** | | |
 
-**Total, prod and bootstrap: about $0.60–1.50 per month.** That is about $0.40 for the secret, $0.10 for
+**While prod is suspended** only the bootstrap stack and the database snapshot remain: under $0.01 for
+the bucket, plus snapshot storage at $0.021 per GB-month (the database is well under 1 GB), so a few
+cents a month at most.
+
+**Total while running, prod and bootstrap: about $0.60–1.50 per month.** That is about $0.40 for the secret, $0.10 for
 database storage, and $0.12–0.96 for database compute, depending on how many hours the database is awake.
 Each extra awake hour costs $0.06. If the database never pauses
 (for example something calls it every few minutes), it costs about $44 a month at 0.5 ACU, and up to about $88 at the 1-ACU cap. Check the
@@ -187,11 +195,59 @@ It changes code and infrastructure only; database data is not rolled back.
 Limits:
 
 - The SHA must be a state `main` itself was in (a merge commit on it, as step 1 lists), at or after
-  the commit that added `scripts/deploy.sh`; older commits cannot deploy themselves.
+  the commit that added suspend and restart (its `infra/app.yaml` has the `DbSnapshot` parameter). The
+  workflow refuses older commits: their template would replace a restored database with an empty one.
+- A rollback is refused while prod is suspended.
 - A rollback waits in the same queue as the prod deploys. GitHub keeps only one waiting run per
   queue, so a rollback still waiting when a new merge arrives can be replaced by that merge's deploy.
 - The next merge to `main` deploys over the rollback, so fix or revert the bad change as well (a PR with
   `git revert <bad sha>`, where `<bad sha>` is the bad merge commit; merging it deploys the reverted code).
+
+## Suspend and restart
+
+Suspending deletes everything in `ria-prod` (API, database, secret, logs) and keeps only the database's
+data, as an encrypted snapshot `ria-prod-db-suspended-<UTC time>`. The bootstrap stack stays, so a
+restart needs no administrator. A restart creates the stack again with the database restored from the
+newest such snapshot: the data is as it was at suspension, the API gets a new URL (the web app is rebuilt
+against it) and a new database password.
+
+The switch is the repo variable `PROD_SUSPENDED` (**Settings → Secrets and variables → Actions →
+Variables**). While it is `true`, the `deploy-prod` job is skipped and the `Rollback` workflow refuses to
+run, so no merge recreates prod.
+
+**Suspend** (an administrator, signed in as in [Apply or update it](#apply-or-update-it), with push
+access to the repo):
+
+1. Make sure the bootstrap stack is current ([Apply or update it](#apply-or-update-it)): a restart
+   needs its snapshot permissions, and the script refuses to run without them.
+2. Set the repo variable `PROD_SUSPENDED` to `true`, then wait until no CI or Rollback run is queued or
+   in progress (one that started earlier could otherwise recreate prod).
+3. From the repo root, run `scripts/suspend.sh prod`. It takes 20–40 minutes, most of it AWS releasing
+   the API's network interfaces. It first publishes the "paused" page (`infra/paused/index.html`) as the
+   web app, then deletes the database with its final snapshot, deletes the stack, and deletes any older
+   suspension snapshot. It is safe to re-run if interrupted.
+
+**Restart** (anyone allowed to change repo variables and run workflows):
+
+1. Delete the repo variable `PROD_SUSPENDED`, or set it to `false`.
+2. Run the deploy: **Actions → CI → Run workflow**, branch `main`, or from a terminal:
+
+   ```bash
+   gh workflow run ci.yml --repo robzakzl/ria-platform --ref main
+   ```
+
+   `scripts/deploy.sh` sees that the stack is gone and restores the database from the newest suspension
+   snapshot. Restoring takes about 15–25 minutes; the job is green once the smoke test passes. If the
+   job times out while the stack is still being created, run it again once `ria-prod` reaches
+   `CREATE_COMPLETE`. If no
+   suspension snapshot exists, the deploy creates an empty database, which the app seeds with demo data.
+3. Read the new API URL as in [Environment and stacks](#environment-and-stacks) and update the table
+   there.
+
+The snapshot stays after a restart (a few cents a month); the next suspension deletes it once its own
+snapshot is ready. Delete it by hand
+(`aws rds delete-db-cluster-snapshot --region us-east-1 --db-cluster-snapshot-identifier <name>`) only if
+you no longer need that copy of the data.
 
 ## When a deploy fails
 

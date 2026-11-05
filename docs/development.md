@@ -15,6 +15,7 @@ How to build, run and test Asterly. This file is the single home for those comma
 | `infra/bootstrap.yaml` | The one-time AWS bootstrap stack (GitHub OIDC deploy roles); see [deployment.md](deployment.md). |
 | `infra/app.yaml`, `infra/lambda/run.sh` | The production AWS environment (`ria-prod`) and the API's Lambda handler; see [deployment.md](deployment.md). |
 | `scripts/deploy.sh`, `scripts/build-lambda.sh` | Deploy prod; build the API's Lambda package into `build/api`. Run by CI, not by hand. |
+| `scripts/publish-pages.sh`, `scripts/suspend.sh`, `infra/paused/` | Publish a folder as the web app on GitHub Pages; suspend prod (an administrator runs it by hand, see [deployment.md](deployment.md)); the page shown while suspended. |
 | `.github/workflows/ci.yml` | CI: runs `./dc check full` on every PR and every push to `main`, and deploys every push to `main` to prod (in parallel with the check). |
 | `.github/workflows/rollback.yml` | Manual redeploy of an earlier commit of `main` to prod; see [deployment.md](deployment.md). |
 
