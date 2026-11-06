@@ -47,6 +47,32 @@
   --logo-card: #14254a;
 }
 
+/* Olive: a light theme in warm cream and olive green. */
+:root[data-theme="olive"] {
+  color-scheme: light;
+  --bg: #fbfaf4;
+  --text: #1f2414;
+  --muted: #5f6650;
+  --border: #e2e1cc;
+  --input-border: #cbc9ad;
+  --surface: #f4f3e6;
+  --hover: #ecebd9;
+  --heading: #3b4128;
+  --error: #b91c1c;
+  --accent: #556b2f;
+  --accent-hover: #435524;
+  --accent-disabled: #b6bf94;
+  --sidebar-bg: #e7ead2;
+  --sidebar-border: #d3d8b2;
+  --sidebar-text: #34401a;
+  --nav-link: #2a301c;
+  --nav-hover-bg: #d3d8b2;
+  --nav-hover-text: #1f2414;
+  --logo-ink: #34401a;
+  --logo-gold: #a88440;
+  --logo-card: #fbfaf4;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -56,6 +82,11 @@ body {
 /* Light mode keeps the browser's link colours; the dark-mode defaults are too dim and purple. */
 :root[data-theme="dark"] .content a:not(.button) {
   color: #93c5fd;
+}
+
+/* Browser-blue links clash with olive; use the theme's own green. */
+:root[data-theme="olive"] .content a:not(.button) {
+  color: var(--accent);
 }
 
 .layout {
@@ -147,6 +178,59 @@ body {
 .theme-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.theme-switcher {
+  position: relative;
+}
+
+/* The theme menu drops down below the button, right-aligned with it. */
+.theme-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 9rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.theme-option:hover {
+  background: var(--hover);
+}
+
+.theme-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Bold and a tick mark the current theme; text colour stays readable in every theme. */
+.theme-option[aria-checked="true"] {
+  font-weight: 600;
+}
+
+.theme-option[aria-checked="true"]::after {
+  content: "\2713";
+  margin-left: auto;
 }
 
 .content {
@@ -366,6 +450,9 @@ body {
   .theme-toggle {
     width: 2.75rem;
     height: 2.75rem;
+  }
+  .theme-option {
+    min-height: 2.75rem;
   }
   .logo {
     height: 34px;

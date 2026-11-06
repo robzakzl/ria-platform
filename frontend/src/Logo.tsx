@@ -4,7 +4,7 @@ const serif = "Georgia, 'Times New Roman', serif";
 
 /**
  * The Asterly crest logo: a shield bearing an A under a gold star, beside the name in spaced serif capitals.
- * Colours come from the --logo-* theme tokens in App.css, so it follows the light/dark switch.
+ * Colours come from the --logo-* theme tokens in App.css, so it follows the theme.
  * The favicon (public/favicon.svg) is the same shield without the name.
  */
 export default function Logo() {
